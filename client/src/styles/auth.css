@@ -1,0 +1,116 @@
+@import url("https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&family=Sora:wght@500;600;700&display=swap");
+@import "tailwindcss";
+
+html,
+body,
+#root {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  font-family: "Plus Jakarta Sans", "Segoe UI", sans-serif;
+  color: #0b274c;
+  background: #f8fafc;
+}
+
+html.dark,
+html.dark body,
+html.dark #root {
+  background: #020617;
+  color: #e2e8f0;
+}
+
+.auth-layout.auth-theme-light {
+  background: radial-gradient(circle at top left, #dbeafe 0%, transparent 38%),
+    radial-gradient(circle at bottom right, #cffafe 0%, transparent 40%),
+    linear-gradient(180deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.auth-layout.auth-theme-dark {
+  background: radial-gradient(circle at top left, #0f172a 0%, transparent 38%),
+    radial-gradient(circle at bottom right, #111827 0%, transparent 40%),
+    linear-gradient(180deg, #020617 0%, #111827 100%);
+}
+
+.auth-layout.auth-theme-light .auth-layout-overlay {
+  background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.2), transparent 45%);
+}
+
+.auth-layout.auth-theme-dark .auth-layout-overlay {
+  background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.08), transparent 45%);
+}
+
+.auth-layout.auth-theme-dark,
+.auth-layout.auth-theme-dark .text-slate-900,
+.auth-layout.auth-theme-dark .text-slate-800,
+.auth-layout.auth-theme-dark .text-slate-700,
+.auth-layout.auth-theme-dark .text-slate-600,
+.auth-layout.auth-theme-dark .text-slate-500 {
+  color: #cbd5e1 !important;
+}
+
+.auth-layout.auth-theme-dark .auth-surface {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-color: rgba(51, 65, 85, 0.8) !important;
+}
+
+.auth-layout.auth-theme-dark .bg-white,
+.auth-layout.auth-theme-dark .bg-slate-50,
+.auth-layout.auth-theme-dark .bg-slate-100,
+.auth-layout.auth-theme-dark .bg-sky-50,
+.auth-layout.auth-theme-dark .bg-emerald-50,
+.auth-layout.auth-theme-dark .bg-amber-50,
+.auth-layout.auth-theme-dark .bg-rose-50,
+.auth-layout.auth-theme-dark .bg-amber-100,
+.auth-layout.auth-theme-dark .bg-emerald-100 {
+  background-color: #0f172a !important;
+}
+
+.auth-layout.auth-theme-dark .border-slate-200,
+.auth-layout.auth-theme-dark .border-slate-300,
+.auth-layout.auth-theme-dark .border-white\/70,
+.auth-layout.auth-theme-dark .border-sky-200,
+.auth-layout.auth-theme-dark .border-emerald-200,
+.auth-layout.auth-theme-dark .border-amber-200,
+.auth-layout.auth-theme-dark .border-rose-200 {
+  border-color: #334155 !important;
+}
+
+.auth-layout.auth-theme-dark .text-sky-800,
+.auth-layout.auth-theme-dark .text-emerald-800,
+.auth-layout.auth-theme-dark .text-amber-800,
+.auth-layout.auth-theme-dark .text-rose-800 {
+  color: #cbd5e1 !important;
+}
+
+.auth-layout.auth-theme-dark input,
+.auth-layout.auth-theme-dark select {
+  background: #0b1220 !important;
+  border-color: #334155 !important;
+  color: #e2e8f0 !important;
+}
+
+.auth-layout.auth-theme-dark input::placeholder {
+  color: #94a3b8 !important;
+}
+
+.auth-layout.auth-theme-dark .review-note {
+  background: rgba(15, 23, 42, 0.92) !important;
+  border-color: #334155 !important;
+  color: #cbd5e1 !important;
+}
+
+@keyframes floatSlow {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-8px);
+  }
+}
+
+.float-slow {
+  animation: floatSlow 5s ease-in-out infinite;
+}
