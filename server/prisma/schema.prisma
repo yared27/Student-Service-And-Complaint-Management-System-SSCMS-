@@ -5,11 +5,250 @@
 // Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
 
 generator client {
-  provider = "prisma-client"
-  output   = "../src/generated/prisma"
+  provider = "prisma-client-js"
 }
 
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
+}
+
+model User {
+  id String @id @default(uuid())
+
+  username String @unique // university ID (login)
+  name     String
+  password String
+
+  email  String?    @unique // optional now
+  role   Role
+  status UserStatus @default(ACTIVE)
+
+  campus     String
+  department String
+
+  phone        String?
+  profileImage String?
+
+  strikeCount      Int       @default(0)
+  isFlagged        Boolean   @default(false)
+  lastSuspendedAt  DateTime?
+  suspensionEndsAt DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdComplaints       Complaint[]      @relation("ComplaintCreatedBy")
+  assignedComplaints      Complaint[]      @relation("ComplaintAssignedTo")
+  createdServiceRequests  ServiceRequest[] @relation("ServiceRequestCreatedBy")
+  assignedServiceRequests ServiceRequest[] @relation("ServiceRequestAssignedTo")
+
+  reportsFiled    MisuseReport[] @relation("MisuseReportReporter")
+  reportsAgainst  MisuseReport[] @relation("MisuseReportReportedUser")
+  reportsReviewed MisuseReport[] @relation("MisuseReportReviewedBy")
+
+  notifications Notification[]
+
+  activityLogsAsActor      ActivityLog[] @relation("ActivityActor")
+  activityLogsAsTargetUser ActivityLog[] @relation("ActivityTargetUser")
+
+  @@index([role, status])
+  @@index([campus, department])
+}
+
+model Complaint {
+  id          String          @id @default(uuid())
+  title       String
+  description String          @db.Text
+  status      ComplaintStatus @default(SUBMITTED)
+  priority    Priority        @default(MEDIUM)
+
+  createdById  String
+  assignedToId String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  createdBy  User  @relation("ComplaintCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo User? @relation("ComplaintAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  misuseReports MisuseReport[]
+  activityLogs  ActivityLog[]
+
+  @@index([createdById, status, createdAt])
+  @@index([assignedToId, status])
+}
+
+model ServiceRequest {
+  id          String               @id @default(uuid())
+  title       String
+  description String               @db.Text
+  status      ServiceRequestStatus @default(SUBMITTED)
+  priority    Priority             @default(MEDIUM)
+
+  createdById  String
+  assignedToId String?
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  resolvedAt DateTime?
+
+  createdBy  User  @relation("ServiceRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo User? @relation("ServiceRequestAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+
+  misuseReports MisuseReport[]
+  activityLogs  ActivityLog[]
+
+  @@index([createdById, status, createdAt])
+  @@index([assignedToId, status])
+}
+
+model MisuseReport {
+  id String @id @default(uuid())
+
+  reporterId     String
+  reportedUserId String
+  reviewedById   String?
+
+  complaintId      String?
+  serviceRequestId String?
+
+  reason      MisuseReportReason
+  details     String?            @db.Text
+  status      MisuseReportStatus @default(OPEN)
+  actionTaken ActionTaken        @default(NONE)
+
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+  reviewedAt DateTime?
+
+  reporter     User  @relation("MisuseReportReporter", fields: [reporterId], references: [id], onDelete: Restrict)
+  reportedUser User  @relation("MisuseReportReportedUser", fields: [reportedUserId], references: [id], onDelete: Restrict)
+  reviewedBy   User? @relation("MisuseReportReviewedBy", fields: [reviewedById], references: [id], onDelete: SetNull)
+
+  complaint      Complaint?      @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+  serviceRequest ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
+
+  @@index([reportedUserId, status, createdAt])
+  @@index([reporterId, createdAt])
+  @@index([complaintId])
+  @@index([serviceRequestId])
+}
+
+model Notification {
+  id     String @id @default(uuid())
+  userId String
+
+  type    NotificationType @default(SYSTEM)
+  title   String
+  message String           @db.Text
+
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, isRead, createdAt])
+}
+
+model ActivityLog {
+  id String @id @default(uuid())
+
+  actorId          String?
+  targetUserId     String?
+  complaintId      String?
+  serviceRequestId String?
+
+  action      String
+  entityType  ActivityEntityType
+  entityId    String
+  description String?            @db.Text
+  metadata    Json?
+
+  createdAt DateTime @default(now())
+
+  actor          User?           @relation("ActivityActor", fields: [actorId], references: [id], onDelete: SetNull)
+  targetUser     User?           @relation("ActivityTargetUser", fields: [targetUserId], references: [id], onDelete: SetNull)
+  complaint      Complaint?      @relation(fields: [complaintId], references: [id], onDelete: SetNull)
+  serviceRequest ServiceRequest? @relation(fields: [serviceRequestId], references: [id], onDelete: SetNull)
+
+  @@index([actorId, createdAt])
+  @@index([targetUserId, createdAt])
+  @@index([entityType, entityId, createdAt])
+}
+
+enum Role {
+  STUDENT
+  SERVICE_MANAGER
+  STAFF
+  COMPLAINT_MANAGER
+  INVESTIGATOR
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+  SUSPENDED
+}
+
+enum ComplaintStatus {
+  SUBMITTED
+  UNDER_REVIEW
+  IN_PROGRESS
+  RESOLVED
+  REJECTED
+}
+
+enum ServiceRequestStatus {
+  SUBMITTED
+  IN_PROGRESS
+  COMPLETED
+  REJECTED
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum MisuseReportReason {
+  SPAM
+  ABUSIVE_LANGUAGE
+  FALSE_INFORMATION
+  DUPLICATE_SPAM
+  OTHER
+}
+
+enum MisuseReportStatus {
+  OPEN
+  REVIEWED
+  ACTION_TAKEN
+  DISMISSED
+}
+
+enum ActionTaken {
+  NONE
+  WARNING
+  TEMP_SUSPENSION
+  PERMANENT_BAN
+}
+
+enum NotificationType {
+  SYSTEM
+  COMPLAINT
+  SERVICE_REQUEST
+  MISUSE_REPORT
+}
+
+enum ActivityEntityType {
+  USER
+  COMPLAINT
+  SERVICE_REQUEST
+  MISUSE_REPORT
 }
