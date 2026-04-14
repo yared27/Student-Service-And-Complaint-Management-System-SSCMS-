@@ -1,121 +1,81 @@
-import { useState } from 'react'
-import reactLogo from './assets/react.svg'
-import viteLogo from './assets/vite.svg'
-import heroImg from './assets/hero.png'
-import './App.css'
+import React from "react";
+import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
+import { AppLayout } from "./components/layout/AppLayout";
+import { studentNav, studentBottomNav, studentTopLinks } from "./config/navConfig";
+
+// Pages
+import StudentDashboard from "./pages/student/StudentDashboard";
+import Directory from "./pages/student/Directory";
+import SubmissionDetail from "./pages/student/SubmissionDetail";
+import TrackStatus from "./pages/student/TrackStatus";
+import Profile from "./pages/shared/Profile";
+import SupportCenter from "./pages/shared/SupportCenter";
+import ServiceCatalog from "./pages/student/ServiceCatalog";
+import Notifications from "./pages/shared/Notifications";
+import Settings from "./pages/shared/Settings";
+import MyRequests from "./pages/student/MyRequests";
+import MyComplaints from "./pages/student/MyComplaints";
+import NewServiceRequest from "./pages/student/NewServiceRequest";
+import NewComplaint from "./pages/student/NewComplaint";
 
 function App() {
-  const [count, setCount] = useState(0)
-
   return (
-    <>
-      <section id="center">
-        <div className="hero">
-          <img src={heroImg} className="base" width="170" height="179" alt="" />
-          <img src={reactLogo} className="framework" alt="React logo" />
-          <img src={viteLogo} className="vite" alt="Vite logo" />
-        </div>
-        <div>
-          <h1>Get started</h1>
-          <p>
-            Edit <code>src/App.jsx</code> and save to test <code>HMR</code>
-          </p>
-        </div>
-        <button
-          className="counter"
-          onClick={() => setCount((count) => count + 1)}
+    <Router>
+      <Routes>
+        {/* STUDENT ROUTES */}
+        <Route
+          element={
+            <AppLayout
+              navItems={studentNav}
+              bottomNavItems={studentBottomNav}
+              topNavLinks={studentTopLinks}
+            />
+          }
         >
-          Count is {count}
-        </button>
-      </section>
+          <Route path="/" element={<StudentDashboard />} />
+          <Route path="/catalog" element={<ServiceCatalog />} />
+          <Route path="/complaints" element={<MyComplaints />} />
+          <Route path="/requests" element={<MyRequests />} />
+          <Route path="/directory" element={<Directory />} />
+          <Route path="/track-status" element={<TrackStatus />} />
 
-      <div className="ticks"></div>
+          {/* DYNAMIC ROUTE: This handles clicking any card with an ID for student dashboard */}
+          <Route path="/submission/:id" element={<SubmissionDetail />} />
+        </Route>
 
-      <section id="next-steps">
-        <div id="docs">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#documentation-icon"></use>
-          </svg>
-          <h2>Documentation</h2>
-          <p>Your questions, answered</p>
-          <ul>
-            <li>
-              <a href="https://vite.dev/" target="_blank">
-                <img className="logo" src={viteLogo} alt="" />
-                Explore Vite
-              </a>
-            </li>
-            <li>
-              <a href="https://react.dev/" target="_blank">
-                <img className="button-icon" src={reactLogo} alt="" />
-                Learn more
-              </a>
-            </li>
-          </ul>
-        </div>
-        <div id="social">
-          <svg className="icon" role="presentation" aria-hidden="true">
-            <use href="/icons.svg#social-icon"></use>
-          </svg>
-          <h2>Connect with us</h2>
-          <p>Join the Vite community</p>
-          <ul>
-            <li>
-              <a href="https://github.com/vitejs/vite" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#github-icon"></use>
-                </svg>
-                GitHub
-              </a>
-            </li>
-            <li>
-              <a href="https://chat.vite.dev/" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#discord-icon"></use>
-                </svg>
-                Discord
-              </a>
-            </li>
-            <li>
-              <a href="https://x.com/vite_js" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#x-icon"></use>
-                </svg>
-                X.com
-              </a>
-            </li>
-            <li>
-              <a href="https://bsky.app/profile/vite.dev" target="_blank">
-                <svg
-                  className="button-icon"
-                  role="presentation"
-                  aria-hidden="true"
-                >
-                  <use href="/icons.svg#bluesky-icon"></use>
-                </svg>
-                Bluesky
-              </a>
-            </li>
-          </ul>
-        </div>
-      </section>
+        {/* FOCUS MODE LAYOUT for Student dashboard (No Sidebar for heavy forms) */}
+        <Route
+          element={
+            <AppLayout
+              navItems={studentNav}
+              bottomNavItems={studentBottomNav}
+              hideSidebar={true}
+            />
+          }
+        >
+          <Route path="/new-complaint" element={<NewComplaint />} />
+          <Route path="/new-service-request" element={<NewServiceRequest />} />
 
-      <div className="ticks"></div>
-      <section id="spacer"></section>
-    </>
-  )
+        </Route>
+
+        {/* SHARED */}
+        <Route
+          element={
+            <AppLayout
+              navItems={studentNav}
+              bottomNavItems={studentBottomNav}
+              topNavLinks={studentTopLinks}
+            />
+          }
+        >
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/notifications" element={<Notifications />} />
+          <Route path="/support" element={<SupportCenter />} />
+        </Route>
+      </Routes>
+    </Router>
+  );
 }
 
-export default App
+export default App;
