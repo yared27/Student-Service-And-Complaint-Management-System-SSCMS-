@@ -14,6 +14,7 @@ import {
   FileText,
   X,
 } from "lucide-react";
+import { apiRequest } from "@/lib/api/httpClient";
 
 const NewServiceRequest = () => {
   const navigate = useNavigate();
@@ -25,6 +26,8 @@ const NewServiceRequest = () => {
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [files, setFiles] = useState([]);
+  const [submitError, setSubmitError] = useState("");
+  const [submittedId, setSubmittedId] = useState("");
 
   const fileInputRef = useRef(null);
 
@@ -39,12 +42,50 @@ const NewServiceRequest = () => {
   const handleFileChange = (e) => setFiles(Array.from(e.target.files || []));
   const removeFile = (index) => setFiles(files.filter((_, i) => i !== index));
 
-  const handleFinalSubmit = () => {
+  const handleFinalSubmit = async () => {
     setIsSubmitting(true);
-    setTimeout(() => {
+    setSubmitError("");
+
+    try {
+      let attachmentUrls = [];
+
+      if (files.length > 0) {
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append("files", file);
+        });
+
+        const uploadResponse = await apiRequest("/uploads/images", {
+          method: "POST",
+          body: formData,
+        });
+
+        attachmentUrls = (uploadResponse?.files || []).map((item) => item.url).filter(Boolean);
+      }
+
+      const priorityMap = {
+        Low: "LOW",
+        Medium: "MEDIUM",
+        High: "HIGH",
+      };
+
+      const requestResponse = await apiRequest("/service-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `${selectedCategory} Service Request`,
+          description,
+          priority: priorityMap[urgency] || "MEDIUM",
+          attachmentUrls,
+        }),
+      });
+
+      setSubmittedId(requestResponse?.serviceRequest?.id || "");
       setIsSubmitting(false);
-      setCurrentStep(4); // Success Screen
-    }, 2000);
+      setCurrentStep(4);
+    } catch (error) {
+      setIsSubmitting(false);
+      setSubmitError(error.message || "Failed to submit request.");
+    }
   };
 
   // SUCCESS SCREEN
@@ -61,7 +102,7 @@ const NewServiceRequest = () => {
           <p className="text-sm text-slate-500 mt-4 leading-relaxed font-medium">
             Your request has been logged successfully. You can track status
             <span className="block font-black text-[#002B5B] mt-1 text-lg">
-              #SR-2026-001
+                {submittedId ? `#${submittedId.slice(0, 8).toUpperCase()}` : "#REQUEST"}
             </span>
           </p>
           <div className="mt-10 space-y-3">
@@ -372,6 +413,13 @@ const NewServiceRequest = () => {
                     Edit Details
                   </button>
                 </div>
+
+                {submitError && (
+                  <div className="flex items-center gap-3 text-red-600 text-sm font-bold bg-red-50 border border-red-100 rounded-2xl px-4 py-3">
+                    <AlertCircle size={16} />
+                    <span>{submitError}</span>
+                  </div>
+                )}
               </div>
             )}
           </div>

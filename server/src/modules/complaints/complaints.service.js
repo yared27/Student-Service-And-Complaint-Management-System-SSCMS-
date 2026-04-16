@@ -29,6 +29,24 @@ export function createComplaintsService({ prisma }) {
   async function createComplaint({ userId, payload }) {
     const title = String(payload?.title || "").trim();
     const description = String(payload?.description || "").trim();
+    const attachmentUrls = Array.isArray(payload?.attachmentUrls)
+      ? payload.attachmentUrls
+          .map((value) => {
+            if (typeof value === "string") {
+              return { url: String(value || "").trim() };
+            }
+
+            return {
+              url: String(value?.url || "").trim(),
+              publicId: value?.publicId ? String(value.publicId).trim() : null,
+              width: Number.isInteger(value?.width) ? value.width : null,
+              height: Number.isInteger(value?.height) ? value.height : null,
+              format: value?.format ? String(value.format).trim() : null,
+              bytes: Number.isInteger(value?.bytes) ? value.bytes : null,
+            };
+          })
+          .filter((value) => value.url)
+      : [];
     const priority = payload?.priority ? String(payload.priority) : "MEDIUM";
 
     if (!title || !description) {
@@ -41,6 +59,16 @@ export function createComplaintsService({ prisma }) {
         description,
         priority,
         createdById: userId,
+        attachments: attachmentUrls.length
+          ? {
+              create: attachmentUrls,
+            }
+          : undefined,
+      },
+      include: {
+        attachments: {
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 
@@ -85,6 +113,9 @@ export function createComplaintsService({ prisma }) {
         include: {
           createdBy: { select: { id: true, name: true, username: true } },
           assignedTo: { select: { id: true, name: true, role: true } },
+          attachments: {
+            orderBy: { createdAt: "asc" },
+          },
         },
       }),
     ]);
@@ -98,6 +129,9 @@ export function createComplaintsService({ prisma }) {
       include: {
         createdBy: { select: { id: true, name: true, username: true } },
         assignedTo: { select: { id: true, name: true, role: true } },
+        attachments: {
+          orderBy: { createdAt: "asc" },
+        },
       },
     });
 

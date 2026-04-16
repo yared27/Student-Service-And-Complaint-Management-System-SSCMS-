@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -9,12 +9,15 @@ import {
   Clock,
   CheckCircle2,
 } from "lucide-react";
-import { recentRequests } from "@/data/mockData";
+import { fetchMyComplaints } from "@/lib/api/studentSubmissionsApi";
 
 const MyComplaints = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [readItems, setReadItems] = useState(new Set());
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
   // ✅ Centralized handler
   const handleOpenItem = (item) => {
@@ -22,15 +25,40 @@ const MyComplaints = () => {
     navigate(`/submission/${item.id}`);
   };
 
-  // Filter only Complaints
-  const complaintsOnly = recentRequests.filter(
-    (item) =>
-      item.type === "Complaint" &&
-      item.title.toLowerCase().includes(search.toLowerCase()),
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadComplaints = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetchMyComplaints({ search, limit: 50, page: 1 });
+        if (!cancelled) {
+          setItems(response.items);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Failed to load complaints.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadComplaints();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
+
+  const complaintsOnly = useMemo(() => items, [items]);
 
   const pendingCount = complaintsOnly.filter(
-    (c) => c.status === "Pending",
+    (c) => ["Submitted", "Under Review", "In Progress", "Pending"].includes(c.status),
   ).length;
 
   return (
@@ -102,7 +130,16 @@ const MyComplaints = () => {
         </div>
 
         {/* GRID LIST */}
-        {complaintsOnly.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-24 bg-white rounded-4xl border-2 border-dashed border-slate-100">
+            <h3 className="text-lg font-black text-[#002B5B] uppercase">Loading complaints...</h3>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-24 bg-white rounded-4xl border-2 border-dashed border-red-100">
+            <h3 className="text-lg font-black text-red-600 uppercase">Failed to load</h3>
+            <p className="text-red-400 text-sm font-medium">{error}</p>
+          </div>
+        ) : complaintsOnly.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {complaintsOnly.map((item) => {
               const isRead = readItems.has(item.id);
