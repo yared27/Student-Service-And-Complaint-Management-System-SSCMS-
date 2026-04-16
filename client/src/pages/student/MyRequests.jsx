@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -9,21 +9,49 @@ import {
   Clock,
   Inbox,
 } from "lucide-react";
-import { recentRequests } from "@/data/mockData";
+import { fetchMyServiceRequests } from "@/lib/api/studentSubmissionsApi";
 
 const MyRequests = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // Filter only Service Requests
-  const requestsOnly = recentRequests.filter(
-    (item) =>
-      item.type === "Service Request" &&
-      item.title.toLowerCase().includes(search.toLowerCase()),
-  );
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadRequests = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetchMyServiceRequests({ search, limit: 50, page: 1 });
+        if (!cancelled) {
+          setItems(response.items);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Failed to load requests.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadRequests();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
+
+  const requestsOnly = useMemo(() => items, [items]);
 
   const pendingCount = requestsOnly.filter(
-    (r) => r.status === "Pending",
+    (r) => ["Submitted", "In Progress", "Pending"].includes(r.status),
   ).length;
   const completedCount = requestsOnly.length - pendingCount;
 
@@ -95,7 +123,16 @@ const MyRequests = () => {
         </div>
 
         {/* REQUESTS GRID */}
-        {requestsOnly.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[2.5rem] border-2 border-dashed border-slate-100">
+            <h3 className="text-lg font-black text-[#002B5B] uppercase">Loading requests...</h3>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-32 bg-white rounded-[2.5rem] border-2 border-dashed border-red-100">
+            <h3 className="text-lg font-black text-red-600 uppercase">Failed to load</h3>
+            <p className="text-red-400 text-sm font-medium">{error}</p>
+          </div>
+        ) : requestsOnly.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {requestsOnly.map((item) => (
               <div

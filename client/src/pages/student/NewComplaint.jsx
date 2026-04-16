@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -10,7 +10,11 @@ import {
   CheckCircle2,
   ArrowLeft,
   Scale,
+  Camera,
+  X,
+  AlertCircle,
 } from "lucide-react";
+import { apiRequest } from "@/lib/api/httpClient";
 
 const NewComplaint = () => {
   const navigate = useNavigate();
@@ -22,6 +26,11 @@ const NewComplaint = () => {
   const [confidential, setConfidential] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [files, setFiles] = useState([]);
+  const [submitError, setSubmitError] = useState("");
+  const [submittedId, setSubmittedId] = useState("");
+
+  const fileInputRef = useRef(null);
 
   const offices = [
     "Registrar Office",
@@ -32,16 +41,62 @@ const NewComplaint = () => {
     "General Services",
   ];
 
-  const handleSubmit = (e) => {
+  const handleUploadClick = () => fileInputRef.current?.click();
+  const handleFileChange = (e) => setFiles(Array.from(e.target.files || []));
+  const removeFile = (index) => setFiles(files.filter((_, i) => i !== index));
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
     if (description.length < 50) return;
 
     setIsSubmitting(true);
-    // Simulate API call
-    setTimeout(() => {
+    setSubmitError("");
+
+    try {
+      let attachments = [];
+
+      if (files.length > 0) {
+        const formData = new FormData();
+        files.forEach((file) => {
+          formData.append("files", file);
+        });
+
+        const uploadResponse = await apiRequest("/uploads/images", {
+          method: "POST",
+          body: formData,
+        });
+
+        attachments = (uploadResponse?.files || [])
+          .map((item) => ({
+            url: item.url,
+            publicId: item.publicId,
+            width: item.width,
+            height: item.height,
+            format: item.format,
+            bytes: item.bytes,
+          }))
+          .filter((item) => item.url);
+      }
+
+      const complaintPayload = {
+        title: subject,
+        description: `[Office Involved] ${department}\n[Confidential] ${confidential ? "Yes" : "No"}\n\n${description}`,
+        priority: "MEDIUM",
+        attachmentUrls: attachments,
+      };
+
+      const response = await apiRequest("/complaints", {
+        method: "POST",
+        body: JSON.stringify(complaintPayload),
+      });
+
+      setSubmittedId(response?.complaint?.id || "");
       setIsSubmitting(false);
       setShowSuccess(true);
-    }, 2000);
+    } catch (error) {
+      setIsSubmitting(false);
+      setSubmitError(error.message || "Failed to submit complaint.");
+    }
   };
 
   // SUCCESS SCREEN
@@ -61,7 +116,7 @@ const NewComplaint = () => {
               Ledger ID
             </p>
             <p className="text-xl font-black text-[#002B5B] tracking-tight">
-              #LGR-4492-2026
+              {submittedId ? `#${submittedId.slice(0, 8).toUpperCase()}` : "#LEDGER"}
             </p>
           </div>
 
@@ -246,6 +301,49 @@ const NewComplaint = () => {
                 />
               </div>
 
+              <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100">
+                <div className="flex items-center justify-between gap-4">
+                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    Attach Evidence (Optional)
+                  </label>
+                  <button
+                    type="button"
+                    onClick={handleUploadClick}
+                    className="inline-flex items-center gap-2 px-4 py-2 rounded-2xl bg-white border border-slate-200 text-[10px] font-black uppercase tracking-widest text-[#002B5B] hover:border-[#002B5B] transition-colors"
+                  >
+                    <Camera size={14} />
+                    Add Photos
+                  </button>
+                </div>
+
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+
+                {files.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mt-4">
+                    {files.map((file, i) => (
+                      <div
+                        key={i}
+                        className="px-3 py-1.5 bg-blue-50 text-[#002B5B] rounded-lg text-[10px] font-black flex items-center gap-2"
+                      >
+                        {file.name.slice(0, 16)}
+                        <X
+                          size={12}
+                          className="cursor-pointer"
+                          onClick={() => removeFile(i)}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
               {/* ROW 3: Confidentiality */}
               <div
                 onClick={() => setConfidential(!confidential)}
@@ -293,6 +391,13 @@ const NewComplaint = () => {
                   ? "Encrypting & Submitting..."
                   : "Submit Formal Grievance"}
               </button>
+
+              {submitError && (
+                <div className="mt-4 flex items-center gap-3 text-red-600 text-sm font-bold bg-red-50 border border-red-100 rounded-2xl px-4 py-3">
+                  <AlertCircle size={16} />
+                  <span>{submitError}</span>
+                </div>
+              )}
             </div>
           </form>
         </main>

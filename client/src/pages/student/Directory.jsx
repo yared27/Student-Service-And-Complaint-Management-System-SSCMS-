@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
@@ -6,17 +6,52 @@ import {
   FileText,
   AlertCircle,
   ChevronRight,
-  Filter,
 } from "lucide-react";
-import { recentRequests } from "@/data/mockData";
-import { Button } from "@/components/ui/button";
+import { fetchSubmissionDirectory } from "@/lib/api/studentSubmissionsApi";
+
+function isResolvedStatus(status) {
+  return ["Resolved", "Completed", "Rejected", "Action Taken", "Dismissed"].includes(String(status || ""));
+}
 
 const Directory = () => {
   const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
+  const [items, setItems] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  const filtered = recentRequests.filter((item) => {
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDirectory = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const response = await fetchSubmissionDirectory({ search, limit: 100, page: 1 });
+        if (!cancelled) {
+          setItems(response.items);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Failed to load submissions.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDirectory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [search]);
+
+  const filtered = useMemo(() => items.filter((item) => {
     const matchesSearch = item.title
       .toLowerCase()
       .includes(search.toLowerCase());
@@ -25,7 +60,7 @@ const Directory = () => {
       (filter === "requests" && item.type === "Service Request") ||
       (filter === "complaints" && item.type === "Complaint");
     return matchesSearch && matchesFilter;
-  });
+  }), [filter, items, search]);
 
   return (
     <div className="min-h-screen bg-slate-50/50 pb-24">
@@ -98,7 +133,22 @@ const Directory = () => {
         </div>
 
         {/* RESULTS GRID */}
-        {filtered.length > 0 ? (
+        {loading ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-slate-100">
+            <h3 className="text-lg font-black text-[#002B5B] uppercase">
+              Loading submissions...
+            </h3>
+          </div>
+        ) : error ? (
+          <div className="flex flex-col items-center justify-center py-20 bg-white rounded-3xl border-2 border-dashed border-red-100">
+            <h3 className="text-lg font-black text-red-600 uppercase">
+              Failed to load
+            </h3>
+            <p className="text-red-400 text-sm font-medium">
+              {error}
+            </p>
+          </div>
+        ) : filtered.length > 0 ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {filtered.map((item) => (
               <div
@@ -132,7 +182,7 @@ const Directory = () => {
                     <div className="flex items-center gap-2">
                       <span
                         className={`px-2 py-0.5 rounded-full text-[8px] font-black uppercase ${
-                          item.status === "Approved"
+                          isResolvedStatus(item.status)
                             ? "bg-emerald-100 text-emerald-600"
                             : "bg-amber-100 text-amber-600"
                         }`}

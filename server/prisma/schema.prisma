@@ -48,12 +48,48 @@ model User {
   reportsReviewed MisuseReport[] @relation("MisuseReportReviewedBy")
 
   notifications Notification[]
+  refreshTokens     RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
 
   activityLogsAsActor      ActivityLog[] @relation("ActivityActor")
   activityLogsAsTargetUser ActivityLog[] @relation("ActivityTargetUser")
 
   @@index([role, status])
   @@index([campus, department])
+}
+
+model RefreshToken {
+  id String @id @default(uuid())
+
+  userId String
+  tokenHash String
+  expiresAt DateTime
+  revokedAt DateTime?
+
+  ipAddress String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revokedAt, expiresAt])
+}
+
+model PasswordResetToken {
+  id String @id @default(uuid())
+
+  userId String
+  tokenHash String
+  expiresAt DateTime
+  usedAt DateTime?
+
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, usedAt, expiresAt])
+  @@index([tokenHash])
 }
 
 model Complaint {
@@ -72,12 +108,31 @@ model Complaint {
 
   createdBy  User  @relation("ComplaintCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   assignedTo User? @relation("ComplaintAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
+  attachments ComplaintAttachment[]
 
   misuseReports MisuseReport[]
   activityLogs  ActivityLog[]
 
   @@index([createdById, status, createdAt])
   @@index([assignedToId, status])
+}
+
+model ComplaintAttachment {
+  id String @id @default(uuid())
+
+  complaintId String
+  url         String
+  publicId    String?
+  width       Int?
+  height      Int?
+  format      String?
+  bytes       Int?
+
+  createdAt DateTime @default(now())
+
+  complaint Complaint @relation(fields: [complaintId], references: [id], onDelete: Cascade)
+
+  @@index([complaintId, createdAt])
 }
 
 model ServiceRequest {

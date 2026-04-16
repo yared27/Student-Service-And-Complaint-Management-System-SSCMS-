@@ -29,16 +29,25 @@ export function createServiceRequestsService({ prisma }) {
   async function createRequest({ userId, payload }) {
     const title = String(payload?.title || "").trim();
     const description = String(payload?.description || "").trim();
+    const attachmentUrls = Array.isArray(payload?.attachmentUrls)
+      ? payload.attachmentUrls
+          .map((value) => String(value || "").trim())
+          .filter(Boolean)
+      : [];
     const priority = payload?.priority ? String(payload.priority) : "MEDIUM";
 
     if (!title || !description) {
       return { status: 400, body: { message: "title and description are required." } };
     }
 
+    const finalDescription = attachmentUrls.length
+      ? `${description}\n\nAttachments:\n${attachmentUrls.join("\n")}`
+      : description;
+
     const request = await prisma.serviceRequest.create({
       data: {
         title,
-        description,
+        description: finalDescription,
         priority,
         createdById: userId,
       },

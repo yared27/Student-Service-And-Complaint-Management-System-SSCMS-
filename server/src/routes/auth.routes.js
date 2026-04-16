@@ -53,13 +53,66 @@ import { createAuthController } from "../modules/auth/auth.controller.js";
  *     responses:
  *       200:
  *         description: Login successful
+ *
+ * /api/auth/refresh:
+ *   post:
+ *     summary: Refresh access token using refresh token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [refreshToken]
+ *             properties:
+ *               refreshToken:
+ *                 type: string
+ *
+ * /api/auth/logout:
+ *   post:
+ *     summary: Revoke current refresh token
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: false
+ *
+ * /api/auth/logout-all:
+ *   post:
+ *     summary: Revoke all sessions for current user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
+ *
+ * /api/auth/forgot-password:
+ *   post:
+ *     summary: Request password reset token
+ *     tags: [Auth]
+ *
+ * /api/auth/reset-password:
+ *   post:
+ *     summary: Reset password using reset token
+ *     tags: [Auth]
+ *
+ * /api/auth/change-password:
+ *   post:
+ *     summary: Change password for current user
+ *     tags: [Auth]
+ *     security:
+ *       - bearerAuth: []
  */
 export function createAuthRouter(deps) {
   const router = Router();
   const controller = createAuthController(deps);
+  const auth = deps.auth;
 
   router.post("/register-student", controller.registerStudent);
   router.post("/login", controller.login);
+  router.post("/refresh", controller.refresh);
+  router.post("/logout", controller.logout);
+  router.post("/forgot-password", controller.forgotPassword);
+  router.post("/reset-password", controller.resetPassword);
+  router.post("/logout-all", auth.authenticate, controller.logoutAll);
+  router.post("/change-password", auth.authenticate, controller.changePassword);
 
   return router;
 }

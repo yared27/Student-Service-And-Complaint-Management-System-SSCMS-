@@ -1,8 +1,8 @@
-import React, { useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
-import { currentUser, recentRequests } from "@/data/mockData";
+import { fetchStudentDashboardData } from "@/lib/api/studentDashboardApi";
 import {
   FileText,
   Megaphone,
@@ -12,20 +12,77 @@ import {
   X,
   HelpCircle,
   Search,
-  Clock,
-  CheckCircle2,
   AlertCircle,
 } from "lucide-react";
+
+function formatFriendlyDate(dateValue) {
+  if (!dateValue) {
+    return "Recently";
+  }
+
+  const parsed = new Date(dateValue);
+  if (Number.isNaN(parsed.getTime())) {
+    return "Recently";
+  }
+
+  return parsed.toLocaleDateString(undefined, {
+    month: "short",
+    day: "2-digit",
+    year: "numeric",
+  });
+}
+
+function isPendingStatus(status) {
+  return ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "PENDING"].includes(String(status || "").toUpperCase());
+}
 
 const StudentDashboard = () => {
   const navigate = useNavigate();
   const [isFabOpen, setIsFabOpen] = useState(false);
   const [filter, setFilter] = useState("all");
-
-  const filteredActivities = recentRequests.filter((item) => {
-    if (filter === "all") return true;
-    return item.status.toLowerCase() === "pending";
+  const [dashboardData, setDashboardData] = useState({
+    userName: "Student",
+    activeRequestsCount: 0,
+    pendingComplaintsCount: 0,
+    activities: [],
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadDashboard = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const data = await fetchStudentDashboardData();
+        if (!cancelled) {
+          setDashboardData(data);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Failed to load dashboard data.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadDashboard();
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  const filteredActivities = useMemo(() => dashboardData.activities.filter((item) => {
+    if (filter === "all") return true;
+    return isPendingStatus(item.status);
+  }), [dashboardData.activities, filter]);
 
   return (
     <div className="space-y-8 pb-32 max-w-350 mx-auto px-6 bg-slate-50/30 min-h-screen">
@@ -38,7 +95,7 @@ const StudentDashboard = () => {
           </h2>
           <h1 className="text-3xl md:text-5xl font-black text-[#002B5B] leading-tight tracking-tight">
             Welcome back, <br className="md:hidden" />
-            {currentUser.name}
+            {dashboardData.userName}
           </h1>
         </div>
 
@@ -49,13 +106,13 @@ const StudentDashboard = () => {
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-blue-500"></span>
             </span>
             <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">
-              2 Active Requests
+              {dashboardData.activeRequestsCount} Active Requests
             </span>
           </div>
           <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-100 rounded-xl shadow-sm">
             <span className="relative h-2.5 w-2.5 inline-flex rounded-full bg-orange-500"></span>
             <span className="text-[10px] font-black text-orange-700 uppercase tracking-widest">
-              1 Pending Complaint
+              {dashboardData.pendingComplaintsCount} Pending Complaints
             </span>
           </div>
         </div>
@@ -115,14 +172,22 @@ const StudentDashboard = () => {
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {filteredActivities.length > 0 ? (
+            {loading ? (
+              <div className="col-span-full py-12 text-center text-[10px] font-black uppercase text-slate-400">
+                Loading activities...
+              </div>
+            ) : error ? (
+              <div className="col-span-full py-12 text-center text-[10px] font-black uppercase text-red-500">
+                {error}
+              </div>
+            ) : filteredActivities.length > 0 ? (
               filteredActivities.map((item) => (
                 <div key={item.id} onClick={() => navigate(`/submission/${item.id}`)} className="bg-white rounded-xl shadow-sm relative p-5 flex flex-col overflow-hidden cursor-pointer group hover:shadow-md transition-all">
                   {item.type === "Service Request" && <div className="absolute left-0 top-[30%] bottom-[30%] w-1 bg-[#002B5B] rounded-r-md" />}
                   <div className={`p-2.5 w-fit rounded-lg mb-4 transition-colors ${item.type === "Service Request" ? "bg-[#E5F0FF]" : "bg-[#FFEBE5]"}`}>
                     {item.type === "Service Request" ? <FileText size={18} className="text-[#5B9DFF]" /> : <AlertCircle size={18} className="text-[#D35A3F]" />}
                   </div>
-                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">{item.type} • {item.date}</div>
+                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest mb-1">{item.type} • {formatFriendlyDate(item.date)}</div>
                   <h4 className="font-bold text-[13px] text-[#002B5B] mb-3">{item.title}</h4>
                   <ChevronRight size={16} className="text-[#002B5B] group-hover:translate-x-1 transition-transform self-end" />
                 </div>

@@ -1,10 +1,8 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   ChevronLeft,
   Clock,
-  Info,
-  CheckCircle2,
   UserCircle2,
   Download,
   Building2,
@@ -12,17 +10,58 @@ import {
   MessageSquare,
   FileText,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
-import { recentRequests } from "@/data/mockData";
+import { fetchSubmissionDetail } from "@/lib/api/studentSubmissionsApi";
 
 const SubmissionDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // FIX: Ensure we compare strings to strings
-  const data = recentRequests.find((r) => String(r.id) === String(id));
+  useEffect(() => {
+    let cancelled = false;
 
-  if (!data) {
+    const loadDetail = async () => {
+      setLoading(true);
+      setError("");
+
+      try {
+        const detail = await fetchSubmissionDetail(id);
+        if (!cancelled) {
+          setData(detail);
+        }
+      } catch (requestError) {
+        if (!cancelled) {
+          setError(requestError.message || "Failed to load submission.");
+        }
+      } finally {
+        if (!cancelled) {
+          setLoading(false);
+        }
+      }
+    };
+
+    if (id) {
+      loadDetail();
+    }
+
+    return () => {
+      cancelled = true;
+    };
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
+        <h2 className="text-xl font-black text-[#002B5B] uppercase tracking-widest">Loading record...</h2>
+      </div>
+    );
+  }
+
+  if (!data || error) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 p-6">
         <AlertCircle size={48} className="text-slate-300 mb-4" />
@@ -30,7 +69,7 @@ const SubmissionDetail = () => {
           Record Not Found
         </h2>
         <p className="text-slate-400 text-sm mb-6 text-center">
-          We couldn't find a submission with ID: {id}
+          {error || `We couldn't find a submission with ID: ${id}`}
         </p>
         <button
           onClick={() => navigate(-1)}
@@ -41,6 +80,8 @@ const SubmissionDetail = () => {
       </div>
     );
   }
+
+  const attachments = Array.isArray(data.attachments) ? data.attachments : [];
 
   return (
     <div className="min-h-screen bg-slate-50/50 font-sans">
@@ -119,7 +160,7 @@ const SubmissionDetail = () => {
                   <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
                     <MessageSquare size={14} /> Detailed Statement
                   </h3>
-                  <div className="bg-slate-50 rounded-[2rem] p-8 border border-slate-100 border-dashed">
+                  <div className="bg-slate-50 rounded-4xl p-8 border border-slate-100 border-dashed">
                     <p className="text-base text-slate-600 leading-relaxed font-medium italic">
                       "
                       {data.description ||
@@ -133,15 +174,49 @@ const SubmissionDetail = () => {
                   <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] flex items-center gap-2">
                     <FileText size={14} /> Attached Evidence
                   </h3>
-                  <div className="p-5 border border-slate-100 rounded-2xl bg-white flex items-center gap-4 text-slate-400 italic text-sm">
-                    No files attached to this submission.
-                  </div>
+                  {attachments.length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {attachments.map((attachment, index) => (
+                        <a
+                          key={attachment.id || `${attachment.url}-${index}`}
+                          href={attachment.url}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="group border border-slate-100 rounded-2xl bg-white overflow-hidden hover:border-[#002B5B]/30 transition-colors"
+                        >
+                          <div className="aspect-video bg-slate-100 overflow-hidden">
+                            <img
+                              src={attachment.url}
+                              alt={`Attachment ${index + 1}`}
+                              className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+                              loading="lazy"
+                            />
+                          </div>
+                          <div className="p-4 flex items-center justify-between gap-3">
+                            <div>
+                              <p className="text-xs font-black text-[#002B5B] uppercase tracking-wider">
+                                Attachment {index + 1}
+                              </p>
+                              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wide">
+                                {attachment.format || "Image"}
+                              </p>
+                            </div>
+                            <ExternalLink size={14} className="text-slate-400 group-hover:text-[#002B5B]" />
+                          </div>
+                        </a>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="p-5 border border-slate-100 rounded-2xl bg-white flex items-center gap-4 text-slate-400 italic text-sm">
+                      No files attached to this submission.
+                    </div>
+                  )}
                 </div>
               </div>
 
               {/* SIDEBAR METADATA */}
               <div className="lg:col-span-4">
-                <div className="bg-slate-50/50 rounded-[2rem] p-8 border border-slate-100 space-y-8">
+                <div className="bg-slate-50/50 rounded-4xl p-8 border border-slate-100 space-y-8">
                   <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest border-b border-slate-200 pb-4">
                     Submission Meta
                   </h4>
