@@ -66,5 +66,30 @@ export function resolveLoginQuery(identity, identifierRaw) {
     };
   }
 
+  if (identityType === "admin") {
+    if (AMU_EMAIL_REGEX.test(identifier.toLowerCase())) {
+      return {
+        where: {
+          email: identifier.toLowerCase(),
+          role: "ADMIN",
+          status: "ACTIVE",
+        },
+      };
+    }
+
+    const normalized = normalizeUpper(identifier);
+    if (!EMPLOYEE_ID_REGEX.test(normalized)) {
+      return { error: "Invalid admin ID format." };
+    }
+
+    return {
+      where: {
+        username: normalized,
+        role: "ADMIN",
+        status: "ACTIVE",
+      },
+    };
+  }
+
   return { error: "Unsupported login identity." };
 }
