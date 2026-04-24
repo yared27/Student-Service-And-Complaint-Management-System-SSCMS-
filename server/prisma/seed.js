@@ -36,6 +36,22 @@ async function upsertUser(data) {
   });
 }
 
+async function upsertServiceManagerProfile({ userId, serviceType }) {
+  return prisma.serviceManager.upsert({
+    where: { userId },
+    update: { serviceType },
+    create: { userId, serviceType },
+  });
+}
+
+async function upsertComplaintManagerProfile({ userId, complaintType }) {
+  return prisma.complaintManager.upsert({
+    where: { userId },
+    update: { complaintType },
+    create: { userId, complaintType },
+  });
+}
+
 async function main() {
   const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
 
@@ -138,6 +154,16 @@ async function main() {
 
   const byUsername = Object.fromEntries(users.map((u) => [u.username, u]));
 
+  const serviceManagerProfile = await upsertServiceManagerProfile({
+    userId: byUsername["SM-001"].id,
+    serviceType: "UTILITIES",
+  });
+
+  const complaintManagerProfile = await upsertComplaintManagerProfile({
+    userId: byUsername["CM-001"].id,
+    complaintType: "ADMINISTRATIVE",
+  });
+
   await prisma.activityLog.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.misuseReport.deleteMany();
@@ -150,8 +176,10 @@ async function main() {
       description: "Water has been unavailable for 2 days in block C.",
       status: "UNDER_REVIEW",
       priority: "HIGH",
+      complaintType: "DORMITORY",
       createdById: byUsername["NSR/1101/24"].id,
       assignedToId: byUsername["CM-001"].id,
+      assignedComplaintManagerId: complaintManagerProfile.id,
     },
   });
 
@@ -161,8 +189,10 @@ async function main() {
       description: "Food quality and hygiene are poor this week.",
       status: "IN_PROGRESS",
       priority: "MEDIUM",
+      complaintType: "CAFETERIA",
       createdById: byUsername["NSR/1102/24"].id,
       assignedToId: byUsername["INV-001"].id,
+      assignedComplaintManagerId: complaintManagerProfile.id,
     },
   });
 
@@ -172,8 +202,10 @@ async function main() {
       description: "This is repeated with abusive text in original submission.",
       status: "REJECTED",
       priority: "LOW",
+      complaintType: "DISCIPLINARY",
       createdById: byUsername["NSR/1104/24"].id,
       assignedToId: byUsername["CM-001"].id,
+      assignedComplaintManagerId: complaintManagerProfile.id,
     },
   });
 
@@ -183,8 +215,10 @@ async function main() {
       description: "Projector in room A2 is not turning on.",
       status: "IN_PROGRESS",
       priority: "MEDIUM",
+      serviceType: "LABORATORY",
       createdById: byUsername["NSR/1103/24"].id,
       assignedToId: byUsername["ELC-023"].id,
+      assignedServiceManagerId: serviceManagerProfile.id,
     },
   });
 
@@ -194,8 +228,10 @@ async function main() {
       description: "Fan in lecture room B5 is broken.",
       status: "COMPLETED",
       priority: "LOW",
+      serviceType: "CLASSROOM",
       createdById: byUsername["SSR/2250/23"].id,
       assignedToId: byUsername["ELC-024"].id,
+      assignedServiceManagerId: serviceManagerProfile.id,
       resolvedAt: new Date(),
     },
   });

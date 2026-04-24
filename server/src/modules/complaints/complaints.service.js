@@ -2,6 +2,33 @@ function canManageComplaint(role) {
   return ["SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"].includes(role);
 }
 
+function normalizeComplaintType(value) {
+  const raw = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+
+  const aliases = {
+    REGISTRAR: "ADMINISTRATIVE",
+    PAPERWORK: "ADMINISTRATIVE",
+    APPROVALS: "ADMINISTRATIVE",
+    HOSTEL: "DORMITORY",
+    CLINIC: "HEALTH",
+    SAFETY: "SECURITY",
+    MISCONDUCT: "DISCIPLINARY",
+  };
+
+  const normalized = aliases[raw] || raw;
+  const allowed = new Set([
+    "ACADEMIC",
+    "ADMINISTRATIVE",
+    "DORMITORY",
+    "CAFETERIA",
+    "DISCIPLINARY",
+    "HEALTH",
+    "SECURITY",
+  ]);
+
+  return allowed.has(normalized) ? normalized : null;
+}
+
 function canWorkComplaint(role) {
   return ["SERVICE_MANAGER", "COMPLAINT_MANAGER", "INVESTIGATOR", "ADMIN"].includes(role);
 }
@@ -25,8 +52,70 @@ async function notifyUser(prisma, userId, type, title, message) {
   });
 }
 
+async function pickComplaintManagerForType(prisma, complaintType) {
+  const managers = await prisma.complaintManager.findMany({
+    where: {
+      complaintType,
+      user: {
+        role: "COMPLAINT_MANAGER",
+        status: "ACTIVE",
+      },
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  if (!managers.length) {
+    return null;
+  }
+
+  if (managers.length === 1) {
+    return managers[0];
+  }
+
+  const withLoad = await Promise.all(
+    managers.map(async (manager) => {
+      const activeLoad = await prisma.complaint.count({
+        where: {
+          assignedComplaintManagerId: manager.id,
+          status: {
+            in: ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS"],
+          },
+        },
+      });
+
+      return {
+        ...manager,
+        activeLoad,
+      };
+    }),
+  );
+
+  withLoad.sort((left, right) => {
+    if (left.activeLoad !== right.activeLoad) {
+      return left.activeLoad - right.activeLoad;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+
+  return withLoad[0];
+}
+
 export function createComplaintsService({ prisma }) {
-  async function createComplaint({ userId, payload }) {
+  async function createComplaint({ userId, role, payload }) {
+    const normalizedRole = String(role || "").toUpperCase();
+    if (normalizedRole !== "STUDENT") {
+      return {
+        status: 403,
+        body: {
+          message: "Only students can submit complaints.",
+        },
+      };
+    }
+
     const title = String(payload?.title || "").trim();
     const description = String(payload?.description || "").trim();
     const attachmentUrls = Array.isArray(payload?.attachmentUrls)
@@ -48,17 +137,44 @@ export function createComplaintsService({ prisma }) {
           .filter((value) => value.url)
       : [];
     const priority = payload?.priority ? String(payload.priority) : "MEDIUM";
+    const complaintType = normalizeComplaintType(payload?.complaintType || payload?.category || payload?.department || title);
 
     if (!title || !description) {
       return { status: 400, body: { message: "title and description are required." } };
     }
+
+    if (!complaintType) {
+      return {
+        status: 400,
+        body: {
+          message:
+            "complaintType is required and must be one of: ACADEMIC, ADMINISTRATIVE, DORMITORY, CAFETERIA, DISCIPLINARY, HEALTH, SECURITY.",
+        },
+      };
+    }
+
+    const manager = await pickComplaintManagerForType(prisma, complaintType);
+
+    if (!manager) {
+      return {
+        status: 422,
+        body: {
+          message: "No complaint manager assigned for this category",
+          complaintType,
+        },
+      };
+    }
+
+    console.log("Routing to manager:", manager.id);
 
     const complaint = await prisma.complaint.create({
       data: {
         title,
         description,
         priority,
+        complaintType,
         createdById: userId,
+        assignedComplaintManagerId: manager.id,
         attachments: attachmentUrls.length
           ? {
               create: attachmentUrls,
@@ -71,6 +187,14 @@ export function createComplaintsService({ prisma }) {
         },
       },
     });
+
+    await notifyUser(
+      prisma,
+      manager.userId,
+      "COMPLAINT",
+      "New routed complaint",
+      `A ${complaintType.toLowerCase()} complaint has been routed to your queue: ${complaint.title}`,
+    );
 
     await prisma.activityLog.create({
       data: {

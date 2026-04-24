@@ -6,7 +6,11 @@ export function createServiceRequestsController({ prisma }) {
   return {
     createRequest: async (req, res) => {
       try {
-        const result = await service.createRequest({ userId: req.user?.sub, payload: req.body });
+        const result = await service.createRequest({
+          userId: req.user?.sub,
+          role: req.user?.role,
+          payload: req.body,
+        });
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error("Create service request failed:", error);

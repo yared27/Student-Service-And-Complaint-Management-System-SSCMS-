@@ -6,7 +6,11 @@ export function createComplaintsController({ prisma }) {
   return {
     createComplaint: async (req, res) => {
       try {
-        const result = await service.createComplaint({ userId: req.user?.sub, payload: req.body });
+        const result = await service.createComplaint({
+          userId: req.user?.sub,
+          role: req.user?.role,
+          payload: req.body,
+        });
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error("Create complaint failed:", error);

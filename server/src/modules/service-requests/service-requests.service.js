@@ -2,6 +2,34 @@ function canManageRequest(role) {
   return ["SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"].includes(role);
 }
 
+function normalizeServiceType(value) {
+  const raw = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
+
+  const aliases = {
+    DORM: "DORMITORY",
+    DORMS: "DORMITORY",
+    MAINTENANCE: "UTILITIES",
+    CLEANING: "UTILITIES",
+    IT: "ICT",
+    IT_SUPPORT: "ICT",
+    TRANSPORTATION: "TRANSPORT",
+  };
+
+  const normalized = aliases[raw] || raw;
+  const allowed = new Set([
+    "DORMITORY",
+    "CAFETERIA",
+    "ICT",
+    "LIBRARY",
+    "CLASSROOM",
+    "LABORATORY",
+    "UTILITIES",
+    "TRANSPORT",
+  ]);
+
+  return allowed.has(normalized) ? normalized : null;
+}
+
 function canWorkRequest(role) {
   return ["STAFF", "SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"].includes(role);
 }
@@ -25,8 +53,70 @@ async function notifyUser(prisma, userId, type, title, message) {
   });
 }
 
+async function pickServiceManagerForType(prisma, serviceType) {
+  const managers = await prisma.serviceManager.findMany({
+    where: {
+      serviceType,
+      user: {
+        role: "SERVICE_MANAGER",
+        status: "ACTIVE",
+      },
+    },
+    select: {
+      id: true,
+      userId: true,
+    },
+  });
+
+  if (!managers.length) {
+    return null;
+  }
+
+  if (managers.length === 1) {
+    return managers[0];
+  }
+
+  const withLoad = await Promise.all(
+    managers.map(async (manager) => {
+      const activeLoad = await prisma.serviceRequest.count({
+        where: {
+          assignedServiceManagerId: manager.id,
+          status: {
+            in: ["SUBMITTED", "IN_PROGRESS"],
+          },
+        },
+      });
+
+      return {
+        ...manager,
+        activeLoad,
+      };
+    }),
+  );
+
+  withLoad.sort((left, right) => {
+    if (left.activeLoad !== right.activeLoad) {
+      return left.activeLoad - right.activeLoad;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+
+  return withLoad[0];
+}
+
 export function createServiceRequestsService({ prisma }) {
-  async function createRequest({ userId, payload }) {
+  async function createServiceRequest({ userId, role, payload }) {
+    const normalizedRole = String(role || "").toUpperCase();
+    if (normalizedRole !== "STUDENT") {
+      return {
+        status: 403,
+        body: {
+          message: "Only students can submit service requests.",
+        },
+      };
+    }
+
     const title = String(payload?.title || "").trim();
     const description = String(payload?.description || "").trim();
     const attachmentUrls = Array.isArray(payload?.attachmentUrls)
@@ -35,21 +125,48 @@ export function createServiceRequestsService({ prisma }) {
           .filter(Boolean)
       : [];
     const priority = payload?.priority ? String(payload.priority) : "MEDIUM";
+    const serviceType = normalizeServiceType(payload?.serviceType || payload?.category || payload?.department || title);
 
     if (!title || !description) {
       return { status: 400, body: { message: "title and description are required." } };
+    }
+
+    if (!serviceType) {
+      return {
+        status: 400,
+        body: {
+          message:
+            "serviceType is required and must be one of: DORMITORY, CAFETERIA, ICT, LIBRARY, CLASSROOM, LABORATORY, UTILITIES, TRANSPORT.",
+        },
+      };
     }
 
     const finalDescription = attachmentUrls.length
       ? `${description}\n\nAttachments:\n${attachmentUrls.join("\n")}`
       : description;
 
+    const manager = await pickServiceManagerForType(prisma, serviceType);
+
+    if (!manager) {
+      return {
+        status: 422,
+        body: {
+          message: "No service manager assigned for this category",
+          serviceType,
+        },
+      };
+    }
+
+    console.log("Routing to manager:", manager.id);
+
     const request = await prisma.serviceRequest.create({
       data: {
         title,
         description: finalDescription,
         priority,
+        serviceType,
         createdById: userId,
+        assignedServiceManagerId: manager.id,
       },
     });
 
@@ -63,6 +180,14 @@ export function createServiceRequestsService({ prisma }) {
         description: "Service request created.",
       },
     });
+
+    await notifyUser(
+      prisma,
+      manager.userId,
+      "SERVICE_REQUEST",
+      "New routed service request",
+      `A ${serviceType.toLowerCase()} request has been routed to your queue: ${request.title}`,
+    );
 
     return { status: 201, body: { message: "Service request submitted.", serviceRequest: request } };
   }
@@ -267,7 +392,8 @@ export function createServiceRequestsService({ prisma }) {
   }
 
   return {
-    createRequest,
+    createServiceRequest,
+    createRequest: createServiceRequest,
     listRequests,
     getRequest,
     assignRequest,
