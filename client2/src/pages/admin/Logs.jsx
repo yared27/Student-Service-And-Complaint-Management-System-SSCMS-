@@ -2,7 +2,9 @@ import { useEffect, useMemo, useState } from "react";
 import { ListTree, Table as TableIcon } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/api/httpClient";
 
 const ACTION_DISPLAY = {
   SERVICE_REQUEST_ASSIGNED: "assigned",
@@ -31,7 +33,7 @@ function mapAction(action) {
 }
 
 export default function AdminLogsPage() {
-  const { token } = useAuth();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
 
@@ -40,31 +42,16 @@ export default function AdminLogsPage() {
   const [toDate, setToDate] = useState("");
   const [viewMode, setViewMode] = useState("table");
 
+  const topLinks = [
+    { to: "/admin/analytics", label: "Analytics" },
+    { to: "/admin/users", label: "Users" },
+    { to: "/admin/analytics/logs", label: "Logs", end: true },
+  ];
+
   async function loadLogs() {
     setLoading(true);
     try {
-      const query = new URLSearchParams({ limit: "100" });
-      if (roleFilter !== "ALL") {
-        query.set("role", roleFilter);
-      }
-      if (fromDate) {
-        query.set("from", fromDate);
-      }
-      if (toDate) {
-        query.set("to", toDate);
-      }
-
-      const response = await fetch(`/api/admin/logs?${query.toString()}`, {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Unable to load activity logs.");
-      }
-
-      const payload = await response.json();
+      const payload = await apiRequest("/activity-logs?limit=100");
       const items = payload?.data || payload?.items || payload || [];
       setLogs(Array.isArray(items) ? items : []);
     } catch (error) {
@@ -106,7 +93,8 @@ export default function AdminLogsPage() {
   }, [logs, roleFilter, fromDate, toDate]);
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 space-y-6">
+    <DashboardLayout role="admin" topLinks={topLinks} user={user || {}}>
+      <div className="max-w-6xl mx-auto space-y-6">
       <header className="rounded-2xl bg-gradient-to-r from-primary via-primary-glow to-accent px-6 py-5 text-primary-foreground shadow-elegant">
         <p className="text-xs uppercase tracking-[0.2em] opacity-85">Admin</p>
         <h1 className="mt-2 text-2xl md:text-3xl font-display font-bold">Activity Logs</h1>
@@ -118,9 +106,8 @@ export default function AdminLogsPage() {
             <option value="ALL">All Roles</option>
             <option value="ADMIN">ADMIN</option>
             <option value="SERVICE_MANAGER">SERVICE_MANAGER</option>
-            <option value="STAFF">STAFF</option>
+            <option value="FIELD_STAFF">FIELD_STAFF</option>
             <option value="COMPLAINT_MANAGER">COMPLAINT_MANAGER</option>
-            <option value="INVESTIGATOR">INVESTIGATOR</option>
             <option value="STUDENT">STUDENT</option>
           </select>
 
@@ -205,6 +192,7 @@ export default function AdminLogsPage() {
           </div>
         )}
       </section>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

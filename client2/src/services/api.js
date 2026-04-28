@@ -51,10 +51,13 @@ function toQuery(params = {}) {
 
 const api = axios.create({
   baseURL,
+  withCredentials: true,
   headers: {
     "Content-Type": "application/json",
   },
 });
+
+axios.defaults.withCredentials = true;
 
 api.interceptors.request.use(
   (config) => {

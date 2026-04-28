@@ -2,6 +2,28 @@ function canManageComplaint(role) {
   return ["SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"].includes(role);
 }
 
+function isMissingGrievanceStatusColumn(error) {
+  return error?.code === "P2022" && String(error?.meta?.column || "").includes("Complaint.grievanceStatus");
+}
+
+const COMPLAINT_SAFE_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  status: true,
+  priority: true,
+  complaintType: true,
+  createdById: true,
+  assignedToId: true,
+  assignedComplaintManagerId: true,
+  createdAt: true,
+  updatedAt: true,
+  resolvedAt: true,
+  createdBy: { select: { id: true, name: true, username: true } },
+  assignedTo: { select: { id: true, name: true, role: true } },
+  attachments: { orderBy: { createdAt: "asc" } },
+};
+
 function normalizeComplaintType(value) {
   const raw = String(value || "").trim().toUpperCase().replace(/[\s-]+/g, "_");
 
@@ -37,7 +59,14 @@ function canViewAllComplaints(role) {
   return ["SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"].includes(role);
 }
 
-async function notifyUser(prisma, userId, type, title, message) {
+const GRIEVANCE_PHASE_SEQUENCE = ["PHASE_1", "PHASE_2", "PHASE_3"];
+
+function normalizeGrievanceStatus(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  return GRIEVANCE_PHASE_SEQUENCE.includes(normalized) ? normalized : null;
+}
+
+async function notifyUser(prisma, userId, type, title, message, extra = {}) {
   if (!userId) {
     return;
   }
@@ -58,7 +87,7 @@ async function pickComplaintManagerForType(prisma, complaintType) {
       complaintType,
       user: {
         role: "COMPLAINT_MANAGER",
-        status: "ACTIVE",
+        status: { in: ["ACTIVE"] },
       },
     },
     select: {
@@ -105,7 +134,7 @@ async function pickComplaintManagerForType(prisma, complaintType) {
 }
 
 export function createComplaintsService({ prisma }) {
-  async function createComplaint({ userId, role, payload }) {
+  async function createGrievance({ userId, role, payload }) {
     const normalizedRole = String(role || "").toUpperCase();
     if (normalizedRole !== "STUDENT") {
       return {
@@ -167,26 +196,47 @@ export function createComplaintsService({ prisma }) {
 
     console.log("Routing to manager:", manager.id);
 
-    const complaint = await prisma.complaint.create({
-      data: {
-        title,
-        description,
-        priority,
-        complaintType,
-        createdById: userId,
-        assignedComplaintManagerId: manager.id,
-        attachments: attachmentUrls.length
-          ? {
-              create: attachmentUrls,
-            }
-          : undefined,
-      },
-      include: {
-        attachments: {
-          orderBy: { createdAt: "asc" },
+    let complaint;
+    try {
+      complaint = await prisma.complaint.create({
+        data: {
+          title,
+          description,
+          priority,
+          grievanceStatus: "PHASE_1",
+          complaintType,
+          createdById: userId,
+          assignedComplaintManagerId: manager.id,
+          attachments: attachmentUrls.length
+            ? {
+                create: attachmentUrls,
+              }
+            : undefined,
         },
-      },
-    });
+        select: COMPLAINT_SAFE_SELECT,
+      });
+    } catch (error) {
+      if (!isMissingGrievanceStatusColumn(error)) {
+        throw error;
+      }
+
+      complaint = await prisma.complaint.create({
+        data: {
+          title,
+          description,
+          priority,
+          complaintType,
+          createdById: userId,
+          assignedComplaintManagerId: manager.id,
+          attachments: attachmentUrls.length
+            ? {
+                create: attachmentUrls,
+              }
+            : undefined,
+        },
+        select: COMPLAINT_SAFE_SELECT,
+      });
+    }
 
     await notifyUser(
       prisma,
@@ -194,6 +244,11 @@ export function createComplaintsService({ prisma }) {
       "COMPLAINT",
       "New routed complaint",
       `A ${complaintType.toLowerCase()} complaint has been routed to your queue: ${complaint.title}`,
+      {
+        route: "/complaint-manager/complaints",
+        entityType: "COMPLAINT",
+        entityId: complaint.id,
+      },
     );
 
     await prisma.activityLog.create({
@@ -209,6 +264,8 @@ export function createComplaintsService({ prisma }) {
 
     return { status: 201, body: { message: "Complaint submitted.", complaint } };
   }
+
+  const createComplaint = createGrievance;
 
   async function listComplaints({ userId, role, query }) {
     const status = query?.status ? String(query.status) : undefined;
@@ -234,13 +291,7 @@ export function createComplaintsService({ prisma }) {
         skip,
         take: limit,
         orderBy: { createdAt: "desc" },
-        include: {
-          createdBy: { select: { id: true, name: true, username: true } },
-          assignedTo: { select: { id: true, name: true, role: true } },
-          attachments: {
-            orderBy: { createdAt: "asc" },
-          },
-        },
+        select: COMPLAINT_SAFE_SELECT,
       }),
     ]);
 
@@ -250,13 +301,7 @@ export function createComplaintsService({ prisma }) {
   async function getComplaint({ userId, role, complaintId }) {
     const complaint = await prisma.complaint.findUnique({
       where: { id: complaintId },
-      include: {
-        createdBy: { select: { id: true, name: true, username: true } },
-        assignedTo: { select: { id: true, name: true, role: true } },
-        attachments: {
-          orderBy: { createdAt: "asc" },
-        },
-      },
+      select: COMPLAINT_SAFE_SELECT,
     });
 
     if (!complaint) {
@@ -282,8 +327,11 @@ export function createComplaintsService({ prisma }) {
 
     const complaint = await prisma.complaint.findUnique({
       where: { id: complaintId },
-      include: {
-        createdBy: { select: { id: true, name: true, username: true } },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        createdById: true,
       },
     });
 
@@ -310,10 +358,7 @@ export function createComplaintsService({ prisma }) {
         assignedToId,
         status: complaint.status === "SUBMITTED" ? "UNDER_REVIEW" : complaint.status,
       },
-      include: {
-        createdBy: { select: { id: true, name: true, username: true } },
-        assignedTo: { select: { id: true, name: true, role: true } },
-      },
+      select: COMPLAINT_SAFE_SELECT,
     });
 
     await prisma.activityLog.create({
@@ -333,6 +378,11 @@ export function createComplaintsService({ prisma }) {
       "COMPLAINT",
       "New complaint assignment",
       `You have been assigned to complaint: ${updated.title}`,
+      {
+        route: "/student/dashboard",
+        entityType: "COMPLAINT",
+        entityId: updated.id,
+      },
     );
 
     return { status: 200, body: { message: "Complaint assigned.", complaint: updated } };
@@ -350,7 +400,13 @@ export function createComplaintsService({ prisma }) {
       return { status: 403, body: { message: "You are not allowed to update complaints." } };
     }
 
-    const complaint = await prisma.complaint.findUnique({ where: { id: complaintId } });
+    const complaint = await prisma.complaint.findUnique({
+      where: { id: complaintId },
+      select: {
+        id: true,
+        assignedToId: true,
+      },
+    });
     if (!complaint) {
       return { status: 404, body: { message: "Complaint not found." } };
     }
@@ -384,10 +440,7 @@ export function createComplaintsService({ prisma }) {
         ...(role !== "INVESTIGATOR" && assignedToId ? { assignedToId } : {}),
         resolvedAt: ["RESOLVED", "REJECTED"].includes(status) ? new Date() : null,
       },
-      include: {
-        createdBy: { select: { id: true, name: true, username: true } },
-        assignedTo: { select: { id: true, name: true, role: true } },
-      },
+      select: COMPLAINT_SAFE_SELECT,
     });
 
     await prisma.activityLog.create({
@@ -408,17 +461,111 @@ export function createComplaintsService({ prisma }) {
         "COMPLAINT",
         "Complaint reviewed",
         `Your complaint \"${updated.title}\" has been ${updated.status.toLowerCase().replace("_", " ")}.`,
+        {
+          route: `/student/submission/${updated.id}`,
+          entityType: "COMPLAINT",
+          entityId: updated.id,
+        },
       );
     }
 
     return { status: 200, body: { message: "Complaint updated.", complaint: updated } };
   }
 
+  async function updateGrievanceStatus({ userId, role, complaintId, payload }) {
+    if (!canManageComplaint(role)) {
+      return { status: 403, body: { message: "You are not allowed to move grievance phases." } };
+    }
+
+    const nextStatus = normalizeGrievanceStatus(payload?.status);
+    if (!nextStatus) {
+      return { status: 400, body: { message: "status must be one of: PHASE_1, PHASE_2, PHASE_3." } };
+    }
+
+    const complaint = await prisma.complaint.findUnique({
+      where: { id: complaintId },
+      select: {
+        id: true,
+        grievanceStatus: true,
+      },
+    }).catch((error) => {
+      if (isMissingGrievanceStatusColumn(error)) {
+        return { __missingGrievanceColumn: true };
+      }
+
+      throw error;
+    });
+
+    if (complaint?.__missingGrievanceColumn) {
+      return { status: 400, body: { message: "Grievance phase tracking is not available until database migration is applied." } };
+    }
+
+    if (!complaint) {
+      return { status: 404, body: { message: "Complaint not found." } };
+    }
+
+
+    const currentStatus = normalizeGrievanceStatus(complaint.grievanceStatus) || "PHASE_1";
+    const currentIndex = GRIEVANCE_PHASE_SEQUENCE.indexOf(currentStatus);
+    const nextIndex = GRIEVANCE_PHASE_SEQUENCE.indexOf(nextStatus);
+
+    if (nextIndex !== currentIndex + 1) {
+      return {
+        status: 400,
+        body: { message: `Invalid grievance phase transition from ${currentStatus} to ${nextStatus}.` },
+      };
+    }
+
+    const updated = await prisma.complaint.update({
+      where: { id: complaintId },
+      data: { grievanceStatus: nextStatus },
+      select: COMPLAINT_SAFE_SELECT,
+    }).catch((error) => {
+      if (isMissingGrievanceStatusColumn(error)) {
+        return { __missingGrievanceColumn: true };
+      }
+
+      throw error;
+    });
+
+    if (updated?.__missingGrievanceColumn) {
+      return { status: 400, body: { message: "Grievance phase tracking is not available until database migration is applied." } };
+    }
+
+    await prisma.activityLog.create({
+      data: {
+        actorId: userId,
+        complaintId,
+        action: "GRIEVANCE_PHASE_UPDATED",
+        entityType: "COMPLAINT",
+        entityId: complaintId,
+        description: `Grievance phase moved to ${nextStatus}.`,
+      },
+    });
+
+    await notifyUser(
+      prisma,
+      updated.createdById,
+      "COMPLAINT",
+      "Grievance phase updated",
+      `Your grievance has moved to ${nextStatus.replace("_", " ")}.`,
+      {
+        route: `/student/submission/${updated.id}`,
+        entityType: "COMPLAINT",
+        entityId: updated.id,
+      },
+    );
+
+    return { status: 200, body: { message: "Grievance phase updated.", complaint: updated } };
+  }
+
   return {
+    createGrievance,
     createComplaint,
     listComplaints,
     getComplaint,
     assignComplaint,
     updateComplaintStatus,
+    updateGrievanceStatus,
   };
 }

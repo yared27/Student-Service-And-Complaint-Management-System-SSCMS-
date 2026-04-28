@@ -90,6 +90,33 @@ import { createComplaintsController } from "../modules/complaints/complaints.con
  *     responses:
  *       200:
  *         description: Complaint updated
+ *
+ * /api/complaints/{id}/grievance-status:
+ *   patch:
+ *     summary: Move grievance phase forward
+ *     tags: [Complaints]
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [status]
+ *             properties:
+ *               status:
+ *                 type: string
+ *                 enum: [PHASE_1, PHASE_2, PHASE_3]
+ *     responses:
+ *       200:
+ *         description: Grievance phase updated
  */
 export function createComplaintsRouter({ prisma, auth }) {
   const router = Router();
@@ -111,6 +138,13 @@ export function createComplaintsRouter({ prisma, auth }) {
     auth.authenticate,
     auth.authorizeRoles("SERVICE_MANAGER", "COMPLAINT_MANAGER", "INVESTIGATOR", "ADMIN"),
     controller.updateComplaintStatus,
+  );
+
+  router.patch(
+    "/:id/grievance-status",
+    auth.authenticate,
+    auth.authorizeRoles("SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"),
+    controller.updateGrievanceStatus,
   );
 
   return router;

@@ -6,7 +6,7 @@ import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { createAuthRouter } from "./src/routes/auth.routes.js";
 import { createReportRouter } from "./src/routes/report.routes.js";
-import { createUsersRouter } from "./src/routes/users.routes.js";
+import { createAdminUsersRouter, createUsersRouter } from "./src/routes/users.routes.js";
 import { createComplaintsRouter } from "./src/routes/complaints.routes.js";
 import { createServiceRequestsRouter } from "./src/routes/service-requests.routes.js";
 import { createNotificationsRouter } from "./src/routes/notifications.routes.js";
@@ -33,7 +33,7 @@ if (!REFRESH_TOKEN_SECRET || REFRESH_TOKEN_SECRET.length < 32) {
     process.exit(1);
 }
 
-const auth = createAuthMiddleware({ jwtSecret: JWT_SECRET });
+const auth = createAuthMiddleware({ jwtSecret: JWT_SECRET, prisma });
 
 const loginRateLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
@@ -43,7 +43,12 @@ const loginRateLimiter = rateLimit({
     message: { message: "Too many login attempts. Please try again later." },
 });
 
-app.use(cors());
+app.use(
+    cors({
+        origin: true,
+        credentials: true,
+    }),
+);
 app.use(express.json());
 
 app.get("/api/docs.json", (_req, res) => {
@@ -94,6 +99,14 @@ app.use(
 );
 
 app.use(
+    "/api/admin",
+    createAdminUsersRouter({
+        prisma,
+        auth,
+    }),
+);
+
+app.use(
     "/api/complaints",
     createComplaintsRouter({
         prisma,
@@ -138,7 +151,7 @@ app.use((_req, res) => {
 
 app.use((err, _req, res, _next) => {
     console.error(err);
-    res.status(500).json({ message: "Internal server error" });
+    res.status(500).json({ error: err?.message || "Internal server error" });
 });
 
 async function startServer() {

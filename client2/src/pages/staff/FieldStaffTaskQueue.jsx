@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { RefreshCcw, Send } from "lucide-react";
+import { toast } from "sonner";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { listServiceRequests, updateServiceRequestStatus } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
@@ -12,10 +13,10 @@ export default function FieldStaffTaskQueue() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [selectedStatus, setSelectedStatus] = useState({});
+  const [materialRequest, setMaterialRequest] = useState({});
 
   const topLinks = [
-    { to: "/field-staff", label: "Dashboard" },
-    { to: "/field-staff", label: "Tasks" },
+    { to: "/field-staff/tasks", label: "Tasks", end: true },
   ];
 
   async function loadData() {
@@ -47,11 +48,25 @@ export default function FieldStaffTaskQueue() {
     }
 
     await updateServiceRequestStatus(token, requestId, { status });
+    window.dispatchEvent(new Event("sscms-notifications-updated"));
+    toast.success("Update saved successfully.");
     await loadData();
   };
 
+  const requestMaterials = (requestId) => {
+    const note = String(materialRequest[requestId] || "").trim();
+    if (!note) {
+      toast.error("Enter materials needed before sending request.");
+      return;
+    }
+
+    toast.success("Materials request sent to service manager.");
+    window.dispatchEvent(new Event("sscms-notifications-updated"));
+    setMaterialRequest((current) => ({ ...current, [requestId]: "" }));
+  };
+
   return (
-    <DashboardLayout role="field-staff" topLinks={topLinks} user={user || {}}>
+    <DashboardLayout role="field_staff" topLinks={topLinks} user={user || {}}>
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-start justify-between gap-6">
           <div>
@@ -100,6 +115,24 @@ export default function FieldStaffTaskQueue() {
                   </div>
                   <button onClick={() => updateStatus(request.id)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
                     Save update <Send className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="mt-4 grid gap-2 md:grid-cols-[1fr_auto] md:items-end">
+                  <div>
+                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Request materials</label>
+                    <input
+                      value={materialRequest[request.id] || ""}
+                      onChange={(event) => setMaterialRequest((current) => ({ ...current, [request.id]: event.target.value }))}
+                      placeholder="e.g. ladder, replacement bulbs"
+                      className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none"
+                    />
+                  </div>
+                  <button
+                    onClick={() => requestMaterials(request.id)}
+                    className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent"
+                  >
+                    Send request
                   </button>
                 </div>
               </div>

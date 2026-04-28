@@ -12,6 +12,18 @@ function getDelegate(prisma, key) {
   return delegate;
 }
 
+function buildStudentRoute(report) {
+  if (report?.complaintId) {
+    return `/student/submission/${report.complaintId}`;
+  }
+
+  if (report?.serviceRequestId) {
+    return `/student/submission/${report.serviceRequestId}`;
+  }
+
+  return "/student/dashboard";
+}
+
 export function createMisuseReportService({ prisma }) {
   const userDelegate = getDelegate(prisma, "user");
   const reportDelegate = getDelegate(prisma, "misuseReport");
@@ -21,15 +33,13 @@ export function createMisuseReportService({ prisma }) {
       return { status: 403, body: { message: "Only Service Manager and Student Union can report students." } };
     }
 
-    const reportedUserId = String(payload?.reportedUserId || "").trim();
-    const reason = String(payload?.reason || "").trim();
+    const reportedUserId = String(payload?.reportedUserId || payload?.studentId || "").trim();
+    const rawReason = String(payload?.reason || "").trim();
+    const normalizedReason = rawReason.toUpperCase();
+    const reason = REASONS.includes(normalizedReason) ? normalizedReason : "OTHER";
 
-    if (!reportedUserId || !reason) {
-      return { status: 400, body: { message: "reportedUserId and reason are required." } };
-    }
-
-    if (!REASONS.includes(reason)) {
-      return { status: 400, body: { message: "Invalid reason value." } };
+    if (!reportedUserId || !rawReason) {
+      return { status: 400, body: { message: "studentId (or reportedUserId) and reason are required." } };
     }
 
     if (reportedUserId === reporterId) {
@@ -50,13 +60,26 @@ export function createMisuseReportService({ prisma }) {
         reporterId,
         reportedUserId,
         reason,
-        details: payload?.details ? String(payload.details) : null,
+        details: payload?.details
+          ? String(payload.details)
+          : !REASONS.includes(normalizedReason)
+            ? `Original reason: ${rawReason}`
+            : null,
         complaintId: payload?.complaintId ? String(payload.complaintId) : null,
         serviceRequestId: payload?.serviceRequestId ? String(payload.serviceRequestId) : null,
       },
       include: {
         reporter: { select: { id: true, name: true, role: true } },
         reportedUser: { select: { id: true, name: true, username: true, role: true, strikeCount: true } },
+      },
+    });
+
+    await prisma.notification.create({
+      data: {
+        userId: reportedUserId,
+        type: "SYSTEM",
+        title: "Disciplinary report filed",
+        message: `A report was filed against your account for ${reason.toLowerCase().replaceAll("_", " ")}.`,
       },
     });
 
@@ -152,6 +175,7 @@ export function createMisuseReportService({ prisma }) {
           data: {
             strikeCount: { increment: 1 },
             isFlagged: true,
+            status: "WARNED",
           },
         });
       }
@@ -163,7 +187,7 @@ export function createMisuseReportService({ prisma }) {
         await tx.user.update({
           where: { id: report.reportedUserId },
           data: {
-            status: "SUSPENDED",
+            status: "BANNED",
             isFlagged: true,
             lastSuspendedAt: reviewedAt,
             suspensionEndsAt: until,
@@ -176,11 +200,22 @@ export function createMisuseReportService({ prisma }) {
         await tx.user.update({
           where: { id: report.reportedUserId },
           data: {
-            status: "SUSPENDED",
+            status: "BANNED",
             isFlagged: true,
             lastSuspendedAt: reviewedAt,
             suspensionEndsAt: null,
             strikeCount: { increment: 1 },
+          },
+        });
+      }
+
+      if (actionTaken !== "NONE") {
+        await tx.notification.create({
+          data: {
+            userId: report.reportedUserId,
+            type: "SYSTEM",
+            title: actionTaken === "WARNING" ? "Account warning issued" : "Account banned",
+            message: actionTaken === "WARNING" ? "Your account has been warned." : "Your account has been banned.",
           },
         });
       }

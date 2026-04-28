@@ -16,8 +16,8 @@ export default function ServiceManagerDashboard() {
   const [selectedStatus, setSelectedStatus] = useState({});
 
   const topLinks = [
-    { to: "/service-manager", label: "Dashboard" },
-    { to: "/service-manager", label: "Requests" },
+    { to: "/service-manager/requests", label: "Requests", end: true },
+    { to: "/service-manager/reports", label: "Reports" },
   ];
 
   async function loadData() {
@@ -68,7 +68,7 @@ export default function ServiceManagerDashboard() {
   };
 
   return (
-    <DashboardLayout role="service-manager" topLinks={topLinks} user={user || {}}>
+    <DashboardLayout role="service_manager" topLinks={topLinks} user={user || {}}>
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-start justify-between gap-6">
           <div>

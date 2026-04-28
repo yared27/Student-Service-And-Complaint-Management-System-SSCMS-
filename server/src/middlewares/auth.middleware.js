@@ -1,7 +1,7 @@
 import jwt from "jsonwebtoken";
 
-export function createAuthMiddleware({ jwtSecret }) {
-  function authenticate(req, res, next) {
+export function createAuthMiddleware({ jwtSecret, prisma }) {
+  async function authenticate(req, res, next) {
     const authHeader = req.headers.authorization || "";
     const [scheme, token] = authHeader.split(" ");
 
@@ -11,6 +11,26 @@ export function createAuthMiddleware({ jwtSecret }) {
 
     try {
       const payload = jwt.verify(token, jwtSecret);
+
+      // If Prisma client is available, validate the user is still active and not banned.
+      if (prisma && payload?.sub) {
+        const user = await prisma.user.findUnique({
+          where: { id: payload.sub },
+          select: { id: true, role: true, status: true },
+        });
+
+        if (!user) {
+          return res.status(401).json({ message: "Unauthorized." });
+        }
+
+        if (String(user.status || "").toUpperCase() === "BANNED") {
+          return res.status(403).json({ message: "Your account has been banned." });
+        }
+
+        req.user = { sub: user.id, role: user.role };
+        return next();
+      }
+
       req.user = payload;
       return next();
     } catch {

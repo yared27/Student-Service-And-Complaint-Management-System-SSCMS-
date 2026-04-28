@@ -199,7 +199,22 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
     return { status: 400, body: { message: resolution.error } };
   }
 
-  const user = await userDelegate.findFirst({ where: resolution.where });
+  const user = await userDelegate.findFirst({
+    where: resolution.where,
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      password: true,
+      email: true,
+      role: true,
+      status: true,
+      campus: true,
+      department: true,
+    },
+  });
+  console.log("Login user lookup:", user ? { id: user.id, username: user.username, email: user.email, role: user.role } : null);
+  console.log("Login user role:", user?.role || null);
   if (!user) {
     return { status: 401, body: { message: "Invalid credentials." } };
   }
@@ -207,6 +222,15 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
   const passwordMatches = await bcrypt.compare(String(password), user.password);
   if (!passwordMatches) {
     return { status: 401, body: { message: "Invalid credentials." } };
+  }
+
+  if (String(user.status || "").toUpperCase() === "BANNED") {
+    return {
+      status: 403,
+      body: {
+        message: "Your account has been banned.",
+      },
+    };
   }
 
   const token = createAccessToken({
@@ -230,6 +254,7 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
       refreshToken: refreshIssueResult.refreshToken,
       accessTokenExpiresIn: rememberMe ? ACCESS_TOKEN_TTL_REMEMBER_ME : ACCESS_TOKEN_TTL,
       refreshTokenExpiresAt: refreshIssueResult.refreshTokenExpiresAt,
+      role: user.role,
       user: toPublicUser(user),
     },
   };
@@ -261,12 +286,25 @@ export async function refreshSession(prisma, payload, jwtSecret, refreshTokenSec
   const user = await prisma.user.findFirst({
     where: {
       id: decoded.sub,
-      status: "ACTIVE",
+    },
+    select: {
+      id: true,
+      username: true,
+      name: true,
+      email: true,
+      role: true,
+      status: true,
+      campus: true,
+      department: true,
     },
   });
 
   if (!user) {
     return { status: 401, body: { message: "User is not active." } };
+  }
+
+  if (String(user.status || "").toUpperCase() === "BANNED") {
+    return { status: 403, body: { message: "Your account has been banned." } };
   }
 
   await revokeRefreshTokenById(prisma, decoded.tid);

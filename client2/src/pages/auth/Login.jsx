@@ -13,12 +13,13 @@ import heroImg from "@/assets/hero-campus.jpg";
 import { Navigate } from "react-router-dom";
 
 const ROLE_REDIRECT = {
-  student: "/student",
-  service_manager: "/service-manager",
-  complaint_manager: "/complaint-manager",
-  field_staff: "/field-staff",
-  investigator: "/investigator",
-  admin: "/admin",
+  student: "/student/dashboard",
+  service_manager: "/service-manager/dashboard",
+  complaint_manager: "/complaint-manager/dashboard",
+  field_staff: "/field-staff/dashboard",
+  staff: "/field-staff/dashboard",
+  investigator: "/investigator/dashboard",
+  admin: "/admin/dashboard",
 };
 
 const STUDENT_ID_REGEX = /^(NSR|SSR)\/\d{1,6}\/\d{2,4}$/i;
@@ -45,8 +46,6 @@ function getIdentityCandidates(identifierRaw) {
   }
 
   if (AMU_EMAIL_REGEX.test(identifier)) {
-    // The backend uses staff emails for service manager and investigator emails for investigator.
-    // Try both identities for university emails.
     return ["staff", "investigator"];
   }
 
@@ -70,7 +69,7 @@ if (storedAuth) {
   try {
     const parsed = JSON.parse(storedAuth);
     const role = String(parsed?.user?.role || "").toLowerCase();
-    const target = ROLE_REDIRECT[role] || "/dashboard";
+    const target = ROLE_REDIRECT[role] || "/student/dashboard";
 
     return <Navigate to={target} replace />;
   } catch {
@@ -145,7 +144,7 @@ if (storedAuth) {
 
       toast.success("Welcome back.");
       const normalizedRole = String(user.role || "").trim().toLowerCase();
-      const target = ROLE_REDIRECT[normalizedRole] || "/dashboard";
+      const target = ROLE_REDIRECT[normalizedRole] || "/student/dashboard";
       navigate(target, { replace: true });
     } catch (error) {
       toast.error(getErrorMessage(error));

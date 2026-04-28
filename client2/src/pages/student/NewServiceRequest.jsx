@@ -21,7 +21,8 @@ const NewServiceRequest = () => {
 
   // State Management
   const [currentStep, setCurrentStep] = useState(1);
-  const [selectedCategory, setSelectedCategory] = useState("Maintenance");
+  const [serviceType, setServiceType] = useState("");
+  const [location, setLocation] = useState("");
   const [urgency, setUrgency] = useState("Medium");
   const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -31,11 +32,15 @@ const NewServiceRequest = () => {
 
   const fileInputRef = useRef(null);
 
-  const categories = [
-    { id: "Maintenance", label: "Maintenance", icon: <Settings size={22} /> },
-    { id: "IT support", label: "IT support", icon: <Monitor size={22} /> },
-    { id: "Cleaning", label: "Cleaning", icon: <Trash2 size={22} /> },
-    { id: "Other", label: "Other", icon: <PlusCircle size={22} /> },
+  const serviceTypeOptions = [
+    { value: "DORMITORY", label: "Dormitory" },
+    { value: "CAFETERIA", label: "Cafeteria" },
+    { value: "ICT", label: "ICT" },
+    { value: "LIBRARY", label: "Library" },
+    { value: "CLASSROOM", label: "Classroom" },
+    { value: "LABORATORY", label: "Laboratory" },
+    { value: "UTILITIES", label: "Utilities" },
+    { value: "TRANSPORT", label: "Transport" },
   ];
 
   const handleUploadClick = () => fileInputRef.current?.click();
@@ -72,8 +77,10 @@ const NewServiceRequest = () => {
       const requestResponse = await apiRequest("/service-requests", {
         method: "POST",
         body: JSON.stringify({
-          title: `${selectedCategory} Service Request`,
-          description,
+          title: `${serviceType || "GENERAL"} Service Request`,
+          serviceType,
+          description: location ? `${description}\n\nLocation: ${location}` : description,
+          location,
           priority: priorityMap[urgency] || "MEDIUM",
           attachmentUrls,
         }),
@@ -221,34 +228,27 @@ const NewServiceRequest = () => {
                 <section>
                   <h3 className="text-xs font-black text-slate-400 uppercase mb-6 tracking-widest flex items-center gap-2">
                     <div className="w-1.5 h-1.5 bg-[#002B5B] rounded-full" />
-                    Select Service Category
+                    Select Service Type
                   </h3>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {categories.map((cat) => (
-                      <button
-                        key={cat.id}
-                        onClick={() => setSelectedCategory(cat.id)}
-                        className={`p-8 rounded-4xl border-2 text-left transition-all duration-300 flex items-center gap-6 ${
-                          selectedCategory === cat.id
-                            ? "bg-slate-50 border-[#002B5B] ring-4 ring-[#002B5B]/5 shadow-md"
-                            : "bg-white border-slate-50 hover:border-slate-200 opacity-70 hover:opacity-100"
-                        }`}
-                      >
-                        <div
-                          className={`p-4 rounded-2xl ${selectedCategory === cat.id ? "bg-[#002B5B] text-white" : "bg-slate-100 text-slate-400"}`}
-                        >
-                          {cat.icon}
-                        </div>
-                        <span className="text-sm font-black uppercase tracking-widest">
-                          {cat.label}
-                        </span>
-                      </button>
-                    ))}
+                  <div className="rounded-3xl border border-slate-200 bg-white p-4">
+                    <select
+                      value={serviceType}
+                      onChange={(e) => setServiceType(e.target.value)}
+                      className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-4 text-sm font-bold text-[#002B5B] outline-none"
+                    >
+                      <option value="">Select</option>
+                      {serviceTypeOptions.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </section>
                 <div className="mt-auto pt-10">
                   <button
                     onClick={() => setCurrentStep(2)}
+                    disabled={!serviceType}
                     className="w-full md:w-auto px-12 py-5 bg-[#002B5B] text-white rounded-3xl font-black uppercase tracking-widest flex items-center justify-center gap-3 hover:shadow-xl hover:-translate-y-1 transition-all active:scale-95"
                   >
                     Next Step <ArrowRight size={18} />
@@ -269,6 +269,18 @@ const NewServiceRequest = () => {
                     onChange={(e) => setDescription(e.target.value)}
                     className="w-full bg-slate-50 rounded-3xl p-8 text-sm h-48 outline-none focus:bg-white border-2 border-transparent focus:border-slate-100 transition-all resize-none font-medium leading-relaxed"
                     placeholder="Provide as much detail as possible to help us solve the issue faster..."
+                  />
+                </section>
+
+                <section>
+                  <h3 className="text-xs font-black text-slate-400 uppercase mb-4 tracking-widest">
+                    Location
+                  </h3>
+                  <input
+                    value={location}
+                    onChange={(e) => setLocation(e.target.value)}
+                    className="w-full bg-slate-50 rounded-2xl p-4 text-sm outline-none focus:bg-white border-2 border-transparent focus:border-slate-100 transition-all"
+                    placeholder="e.g. Block A, Floor 2"
                   />
                 </section>
 
@@ -365,7 +377,7 @@ const NewServiceRequest = () => {
                         Type
                       </p>
                       <p className="text-sm font-black text-[#002B5B] uppercase">
-                        {selectedCategory}
+                        {serviceType || "Not selected"}
                       </p>
                     </div>
                     <div className="space-y-1">

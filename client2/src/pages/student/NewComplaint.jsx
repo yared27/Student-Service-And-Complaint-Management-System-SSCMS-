@@ -21,6 +21,7 @@ const NewComplaint = () => {
 
   // State Management
   const [subject, setSubject] = useState("");
+  const [complaintType, setComplaintType] = useState("");
   const [department, setDepartment] = useState("");
   const [description, setDescription] = useState("");
   const [confidential, setConfidential] = useState(false);
@@ -39,6 +40,16 @@ const NewComplaint = () => {
     "Student Services",
     "Department Head",
     "General Services",
+  ];
+
+  const complaintTypes = [
+    "ACADEMIC",
+    "ADMINISTRATIVE",
+    "DORMITORY",
+    "CAFETERIA",
+    "DISCIPLINARY",
+    "HEALTH",
+    "SECURITY",
   ];
 
   const handleUploadClick = () => fileInputRef.current?.click();
@@ -80,6 +91,7 @@ const NewComplaint = () => {
 
       const complaintPayload = {
         title: subject,
+        complaintType,
         description: `[Office Involved] ${department}\n[Confidential] ${confidential ? "Yes" : "No"}\n\n${description}`,
         priority: "MEDIUM",
         attachmentUrls: attachments,
@@ -249,6 +261,31 @@ const NewComplaint = () => {
                     placeholder="e.g., Tuition Overcharge"
                     className="w-full bg-transparent text-sm outline-none font-bold text-[#002B5B] placeholder:text-slate-300 placeholder:font-medium"
                     required
+                  />
+                </div>
+
+                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 focus-within:border-[#002B5B]/30 focus-within:bg-white transition-all relative">
+                  <label className="text-[10px] font-black text-slate-400 uppercase mb-3 block tracking-widest">
+                    Complaint Type
+                  </label>
+                  <select
+                    value={complaintType}
+                    onChange={(e) => setComplaintType(e.target.value)}
+                    className="w-full bg-transparent text-sm outline-none font-bold text-[#002B5B] appearance-none pr-8 cursor-pointer"
+                    required
+                  >
+                    <option value="" disabled className="font-medium">
+                      Select complaint type...
+                    </option>
+                    {complaintTypes.map((type) => (
+                      <option key={type} value={type}>
+                        {type}
+                      </option>
+                    ))}
+                  </select>
+                  <ChevronDown
+                    size={18}
+                    className="absolute right-6 top-1/2 translate-y-1 text-[#002B5B] pointer-events-none"
                   />
                 </div>
 
