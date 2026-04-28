@@ -2,28 +2,59 @@ import { useEffect, useMemo, useState } from "react";
 import { Download, Plus, Search } from "lucide-react";
 import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { apiRequest } from "@/lib/api/httpClient";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
-const ROLE_OPTIONS = ["ADMIN", "SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "INVESTIGATOR", "STUDENT"];
+const ROLE_OPTIONS = ["ADMIN", "SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "STUDENT"];
 const DEPT_OPTIONS = ["ICT", "Student Services", "Student Union", "Student Affairs", "Electrical", "Maintenance"];
+const SERVICE_TYPE_OPTIONS = ["DORMITORY", "CAFETERIA", "ICT", "LIBRARY", "CLASSROOM", "LABORATORY", "UTILITIES", "TRANSPORT"];
+const COMPLAINT_TYPE_OPTIONS = ["ACADEMIC", "ADMINISTRATIVE", "DORMITORY", "CAFETERIA", "DISCIPLINARY", "HEALTH", "SECURITY"];
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/$/, "");
 
-function normalizeStatus(raw) {
+function normalizeStatus(raw, isActive = true) {
   const value = String(raw || "").toUpperCase();
+  if (isActive === false) {
+    return "DEACTIVATED";
+  }
+
   if (["SUSPENDED", "BANNED", "INACTIVE"].includes(value)) {
     return "BANNED";
+  }
+  if (value === "WARNED") {
+    return "WARNED";
   }
   return "ACTIVE";
 }
 
 function statusTone(status) {
-  return status === "BANNED" ? "bg-destructive/15 text-destructive" : "bg-success/15 text-success";
+  if (status === "BANNED") {
+    return "bg-destructive/15 text-destructive";
+  }
+
+  if (status === "WARNED") {
+    return "bg-amber-500/15 text-amber-700";
+  }
+
+  if (status === "DEACTIVATED") {
+    return "bg-muted text-muted-foreground";
+  }
+
+  return "bg-success/15 text-success";
 }
 
 export default function AdminUsersPage() {
-  const { token } = useAuth();
+  const { token, user } = useAuth();
+
+  const topLinks = [
+    { to: "/admin/analytics", label: "Analytics" },
+    { to: "/admin/reports", label: "Reports" },
+    { to: "/admin/users", label: "Users", end: true },
+    { to: "/admin/analytics/logs", label: "Logs" },
+  ];
 
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
@@ -42,28 +73,22 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    password: "",
     role: "STUDENT",
     department: "ICT",
     status: "ACTIVE",
+    serviceType: "",
+    complaintType: "",
   });
 
   async function loadUsers() {
     setLoading(true);
     try {
-      const response = await fetch("/api/admin/users", {
-        headers: {
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error("Unable to load users.");
-      }
-
-      const payload = await response.json();
-      const items = payload?.data || payload?.items || payload || [];
+      const payload = await apiRequest("/admin/users");
+      const items = payload?.items || payload?.data || payload || [];
       setUsers(Array.isArray(items) ? items : []);
     } catch (error) {
+      setUsers([]);
       toast.error(error.message || "Unable to load users.");
     } finally {
       setLoading(false);
@@ -81,7 +106,7 @@ export default function AdminUsersPage() {
 
       const matchesSearch = !q || full.includes(q);
       const matchesRole = roleFilter === "ALL" || String(user.role || "").toUpperCase() === roleFilter;
-      const matchesStatus = statusFilter === "ALL" || normalizeStatus(user.status) === statusFilter;
+      const matchesStatus = statusFilter === "ALL" || normalizeStatus(user.status, user.isActive) === statusFilter;
       const matchesDept = deptFilter === "ALL" || String(user.department || "").toLowerCase() === deptFilter.toLowerCase();
 
       return matchesSearch && matchesRole && matchesStatus && matchesDept;
@@ -92,9 +117,12 @@ export default function AdminUsersPage() {
     setForm({
       name: "",
       email: "",
+      password: "",
       role: "STUDENT",
       department: "ICT",
       status: "ACTIVE",
+      serviceType: "",
+      complaintType: "",
     });
     setCreateOpen(true);
   }
@@ -106,7 +134,9 @@ export default function AdminUsersPage() {
       email: user.email || "",
       role: String(user.role || "STUDENT").toUpperCase(),
       department: user.department || "ICT",
-      status: normalizeStatus(user.status),
+      status: user.isActive === false ? "ACTIVE" : normalizeStatus(user.status, true),
+      serviceType: String(user.serviceType || ""),
+      complaintType: String(user.complaintType || ""),
     });
     setEditOpen(true);
   }
@@ -115,18 +145,10 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      const response = await fetch("/api/admin/users", {
+      await apiRequest("/admin/users", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify(form),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to create user.");
-      }
 
       toast.success("User created.");
       setCreateOpen(false);
@@ -146,18 +168,10 @@ export default function AdminUsersPage() {
 
     setSaving(true);
     try {
-      const response = await fetch(`/api/admin/users/${editingUser.id}`, {
+      await apiRequest(`/admin/users/${editingUser.id}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
         body: JSON.stringify(form),
       });
-
-      if (!response.ok) {
-        throw new Error("Failed to update user.");
-      }
 
       toast.success("User updated.");
       setEditOpen(false);
@@ -172,18 +186,12 @@ export default function AdminUsersPage() {
 
   async function deactivateUser(userId) {
     try {
-      const response = await fetch(`/api/admin/users/${userId}`, {
+      await apiRequest(`/admin/users/${userId}`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          ...(token ? { Authorization: `Bearer ${token}` } : {}),
-        },
-        body: JSON.stringify({ status: "SUSPENDED" }),
+        body: JSON.stringify({ status: "BANNED" }),
       });
 
-      if (!response.ok) {
-        throw new Error("Failed to deactivate user.");
-      }
+      window.dispatchEvent(new Event("sscms-notifications-updated"));
 
       toast.success("User deactivated.");
       loadUsers();
@@ -192,10 +200,25 @@ export default function AdminUsersPage() {
     }
   }
 
+  async function moderateUser(userId, status) {
+    try {
+      await apiRequest(`/admin/users/${userId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+
+      window.dispatchEvent(new Event("sscms-notifications-updated"));
+      toast.success(`User marked as ${status.toLowerCase()}.`);
+      loadUsers();
+    } catch (error) {
+      toast.error(error.message || "Failed to moderate user.");
+    }
+  }
+
   async function exportCsv() {
     setExporting(true);
     try {
-      const response = await fetch("/api/admin/users/export", {
+      const response = await fetch(`${API_BASE_URL}/admin/users/export`, {
         headers: {
           ...(token ? { Authorization: `Bearer ${token}` } : {}),
         },
@@ -222,7 +245,8 @@ export default function AdminUsersPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-8 space-y-6">
+    <DashboardLayout role="admin" topLinks={topLinks} user={user || {}}>
+      <div className="max-w-6xl mx-auto space-y-6">
       <header className="rounded-2xl bg-gradient-to-r from-primary via-primary-glow to-accent px-6 py-5 text-primary-foreground shadow-elegant">
         <p className="text-xs uppercase tracking-[0.2em] opacity-85">Admin</p>
         <h1 className="mt-2 text-2xl md:text-3xl font-display font-bold">Users Management</h1>
@@ -261,7 +285,9 @@ export default function AdminUsersPage() {
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <option value="ALL">All Status</option>
             <option value="ACTIVE">Active</option>
+            <option value="WARNED">Warned</option>
             <option value="BANNED">Banned</option>
+            <option value="DEACTIVATED">Deactivated</option>
           </select>
         </div>
 
@@ -298,12 +324,12 @@ export default function AdminUsersPage() {
               ) : filteredUsers.length === 0 ? (
                 <tr>
                   <td className="px-4 py-6 text-muted-foreground" colSpan={6}>
-                    No users found.
+                    {users.length === 0 ? "No users found." : "No users match your current filters."}
                   </td>
                 </tr>
               ) : (
                 filteredUsers.map((user) => {
-                  const status = normalizeStatus(user.status);
+                  const status = normalizeStatus(user.status, user.isActive);
                   return (
                     <tr key={user.id} className="border-t hover:bg-secondary/30">
                       <td className="px-4 py-3 font-medium">{user.name || "-"}</td>
@@ -318,6 +344,8 @@ export default function AdminUsersPage() {
                           <Button variant="outline" size="sm" onClick={() => openEdit(user)}>
                             Edit
                           </Button>
+                          <Button variant="outline" size="sm" onClick={() => moderateUser(user.id, "WARNED")}>Warn</Button>
+                          <Button variant="outline" size="sm" onClick={() => moderateUser(user.id, "BANNED")}>Ban</Button>
                           <Button variant="outline" size="sm" onClick={() => deactivateUser(user.id)}>
                             Deact
                           </Button>
@@ -347,6 +375,10 @@ export default function AdminUsersPage() {
               <Label>Email</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} />
             </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input type="password" value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} required />
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Role</Label>
@@ -364,6 +396,30 @@ export default function AdminUsersPage() {
                   {DEPT_OPTIONS.map((dept) => (
                     <option key={dept} value={dept}>
                       {dept}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Service Type (for service managers)</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.serviceType} onChange={(e) => setForm((prev) => ({ ...prev, serviceType: e.target.value }))}>
+                  <option value="">Not set</option>
+                  {SERVICE_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Complaint Type (for complaint managers)</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.complaintType} onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}>
+                  <option value="">Not set</option>
+                  {COMPLAINT_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
                     </option>
                   ))}
                 </select>
@@ -418,10 +474,35 @@ export default function AdminUsersPage() {
                 </select>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-2">
+                <Label>Service Type</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.serviceType} onChange={(e) => setForm((prev) => ({ ...prev, serviceType: e.target.value }))}>
+                  <option value="">Not set</option>
+                  {SERVICE_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div className="space-y-2">
+                <Label>Complaint Type</Label>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.complaintType} onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}>
+                  <option value="">Not set</option>
+                  {COMPLAINT_TYPE_OPTIONS.map((type) => (
+                    <option key={type} value={type}>
+                      {type}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
             <div className="space-y-2">
               <Label>Status</Label>
               <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}>
                 <option value="ACTIVE">Active</option>
+                <option value="WARNED">Warned</option>
                 <option value="BANNED">Banned</option>
               </select>
             </div>
@@ -436,6 +517,7 @@ export default function AdminUsersPage() {
           </form>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </DashboardLayout>
   );
 }

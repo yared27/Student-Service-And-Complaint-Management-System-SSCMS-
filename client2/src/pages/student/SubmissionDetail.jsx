@@ -14,6 +14,38 @@ import {
 } from "lucide-react";
 import { fetchSubmissionDetail } from "@/lib/api/studentSubmissionsApi";
 
+const grievancePhases = ["PHASE_1", "PHASE_2", "PHASE_3"];
+
+function GrievancePhaseTracker({ currentPhase }) {
+  const activeIndex = Math.max(grievancePhases.indexOf(currentPhase), 0);
+
+  return (
+    <div className="rounded-3xl border border-slate-100 bg-slate-50/70 p-6">
+      <h3 className="text-[11px] font-black uppercase text-slate-400 tracking-[0.2em] mb-4">Investigation process</h3>
+      <div className="grid gap-3 md:grid-cols-3">
+        {grievancePhases.map((phase, index) => {
+          const isComplete = index < activeIndex;
+          const isActive = index === activeIndex;
+          return (
+            <div
+              key={phase}
+              className={`rounded-2xl border px-4 py-3 text-center text-[11px] font-black uppercase tracking-[0.15em] ${
+                isActive
+                  ? "border-[#002B5B] bg-blue-50 text-[#002B5B]"
+                  : isComplete
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : "border-slate-200 bg-white text-slate-400"
+              }`}
+            >
+              {phase.replace("_", " ")}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
 const SubmissionDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -82,6 +114,7 @@ const SubmissionDetail = () => {
   }
 
   const attachments = Array.isArray(data.attachments) ? data.attachments : [];
+  const currentPhase = String(data.grievanceStatusRaw || "PHASE_1").toUpperCase();
 
   return (
     <div className="min-h-screen bg-slate-50/50 font-sans">
@@ -154,6 +187,10 @@ const SubmissionDetail = () => {
                       {String(data.id).toUpperCase()}
                     </span>
                   </div>
+                </div>
+
+                <div className="space-y-4">
+                  {data.type === "Complaint" ? <GrievancePhaseTracker currentPhase={currentPhase} /> : null}
                 </div>
 
                 <div className="space-y-4">

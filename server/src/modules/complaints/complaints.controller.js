@@ -69,5 +69,21 @@ export function createComplaintsController({ prisma }) {
         return res.status(500).json({ message: "Failed to update complaint." });
       }
     },
+
+    updateGrievanceStatus: async (req, res) => {
+      try {
+        const result = await service.updateGrievanceStatus({
+          userId: req.user?.sub,
+          role: req.user?.role,
+          complaintId: req.params.id,
+          payload: req.body,
+        });
+
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("Update grievance phase failed:", error);
+        return res.status(500).json({ message: "Failed to update grievance phase." });
+      }
+    },
   };
 }

@@ -107,6 +107,13 @@ export function createReportRouter({ prisma, auth }) {
   const controller = createMisuseReportController({ prisma });
 
   router.post(
+    "/",
+    auth.authenticate,
+    auth.authorizeRoles("SERVICE_MANAGER", "COMPLAINT_MANAGER"),
+    controller.createReport,
+  );
+
+  router.post(
     "/misuse",
     auth.authenticate,
     auth.authorizeRoles("SERVICE_MANAGER", "COMPLAINT_MANAGER"),

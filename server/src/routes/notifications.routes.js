@@ -37,6 +37,7 @@ export function createNotificationsRouter({ prisma, auth }) {
   const router = Router();
   const controller = createNotificationsController({ prisma });
 
+  router.get("/unread-count", auth.authenticate, controller.unreadCount);
   router.get("/", auth.authenticate, controller.listMyNotifications);
   router.patch("/:id/read", auth.authenticate, controller.markAsRead);
   router.patch("/read-all", auth.authenticate, controller.markAllRead);

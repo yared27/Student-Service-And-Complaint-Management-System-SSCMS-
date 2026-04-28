@@ -83,3 +83,25 @@ export function createUsersRouter({ prisma, auth }) {
 
   return router;
 }
+
+export function createAdminUsersRouter({ prisma, auth }) {
+  const router = Router();
+  const controller = createUsersController({ prisma });
+
+  router.use(auth.authenticate, auth.authorizeRoles("ADMIN"));
+
+  router.get("/users", controller.listAdminUsers);
+  router.post("/users", controller.createAdminUser);
+  router.get("/users/export", controller.exportAdminUsersCsv);
+  router.patch("/users/:id", controller.updateAdminUser);
+  router.get("/reports", controller.listAdminReports);
+  router.patch("/reports/:id", controller.moderateAdminReport);
+  router.post("/reports/:id/moderate", controller.moderateAdminReport);
+  router.get("/analytics", controller.getAdminAnalytics);
+  router.get("/analytics/services", controller.getAdminAnalyticsServices);
+  router.get("/analytics/complaints", controller.getAdminAnalyticsComplaints);
+  router.get("/analytics/users", controller.getAdminAnalyticsUsers);
+  router.patch("/users/:id/moderate", controller.moderateUser);
+
+  return router;
+}

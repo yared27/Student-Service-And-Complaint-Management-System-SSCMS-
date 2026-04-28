@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { 
   ChevronLeft, 
@@ -7,7 +7,6 @@ import {
   Phone, 
   MessageSquare, 
   ChevronDown, 
-  Search, 
   Mail, 
   Clock, 
   ExternalLink, 
@@ -42,6 +41,14 @@ const SupportCenter = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [openFaq, setOpenFaq] = useState(null);
+
+  const role = String(user?.role || "").toUpperCase();
+  const canAccessSupport = ["STUDENT", "FIELD_STAFF", "STAFF", "COMPLAINT_MANAGER"].includes(role);
+  const canSubmitFromSupport = role === "STUDENT";
+
+  if (!canAccessSupport) {
+    return <Navigate to="/unauthorized" replace />;
+  }
 
   return (
     <div className="min-h-screen bg-[#F8FAFC] pb-32">
@@ -159,58 +166,60 @@ const SupportCenter = () => {
           {/* RIGHT: CONTACT & ACTION SIDEBAR */}
           <div className="lg:col-span-5 space-y-8">
             {/* Quick Action */}
-            <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
-              <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">
-                Need formal help?
-              </h3>
-              <div className="space-y-4">
-                <button
-                  onClick={() => navigate("/student/complaint-submission")}
-                  className="w-full group bg-[#FFEBE5] hover:bg-[#D35A3F] transition-all p-4 rounded-2xl flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-white rounded-xl text-[#D35A3F]">
-                      <MessageSquare size={20} />
+            {canSubmitFromSupport ? (
+              <div className="bg-white p-8 rounded-[2rem] shadow-sm border border-slate-100">
+                <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-[0.2em] mb-6">
+                  Need formal help?
+                </h3>
+                <div className="space-y-4">
+                  <button
+                    onClick={() => navigate("/student/complaint/new")}
+                    className="w-full group bg-[#FFEBE5] hover:bg-[#D35A3F] transition-all p-4 rounded-2xl flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-white rounded-xl text-[#D35A3F]">
+                        <MessageSquare size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black text-[#D35A3F] group-hover:text-white uppercase">
+                          Submit Complaint
+                        </p>
+                        <p className="text-[9px] font-bold text-[#D35A3F]/60 group-hover:text-white/70">
+                          Report an active issue
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <p className="text-[10px] font-black text-[#D35A3F] group-hover:text-white uppercase">
-                        Submit Complaint
-                      </p>
-                      <p className="text-[9px] font-bold text-[#D35A3F]/60 group-hover:text-white/70">
-                        Report an active issue
-                      </p>
-                    </div>
-                  </div>
-                  <PlusCircle
-                    size={18}
-                    className="text-[#D35A3F] group-hover:text-white transition-transform group-hover:rotate-90"
-                  />
-                </button>
+                    <PlusCircle
+                      size={18}
+                      className="text-[#D35A3F] group-hover:text-white transition-transform group-hover:rotate-90"
+                    />
+                  </button>
 
-                <button
-                  onClick={() => navigate("/student/new-service-request")}
-                  className="w-full group bg-[#E5F0FF] hover:bg-[#002B5B] transition-all p-4 rounded-2xl flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-4">
-                    <div className="p-2.5 bg-white rounded-xl text-[#002B5B]">
-                      <Mail size={20} />
+                  <button
+                    onClick={() => navigate("/student/request/new")}
+                    className="w-full group bg-[#E5F0FF] hover:bg-[#002B5B] transition-all p-4 rounded-2xl flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-4">
+                      <div className="p-2.5 bg-white rounded-xl text-[#002B5B]">
+                        <Mail size={20} />
+                      </div>
+                      <div className="text-left">
+                        <p className="text-[10px] font-black text-[#002B5B] group-hover:text-white uppercase">
+                          Request Service
+                        </p>
+                        <p className="text-[9px] font-bold text-[#002B5B]/60 group-hover:text-white/70">
+                          Apply for documents/help
+                        </p>
+                      </div>
                     </div>
-                    <div className="text-left">
-                      <p className="text-[10px] font-black text-[#002B5B] group-hover:text-white uppercase">
-                        Request Service
-                      </p>
-                      <p className="text-[9px] font-bold text-[#002B5B]/60 group-hover:text-white/70">
-                        Apply for documents/help
-                      </p>
-                    </div>
-                  </div>
-                  <PlusCircle
-                    size={18}
-                    className="text-[#002B5B] group-hover:text-white transition-transform group-hover:rotate-90"
-                  />
-                </button>
+                    <PlusCircle
+                      size={18}
+                      className="text-[#002B5B] group-hover:text-white transition-transform group-hover:rotate-90"
+                    />
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : null}
 
             {/* Direct Contacts */}
             <div className="space-y-4 px-2">

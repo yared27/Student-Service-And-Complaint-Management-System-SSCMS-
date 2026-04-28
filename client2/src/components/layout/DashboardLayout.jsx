@@ -1,29 +1,60 @@
+import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
 import { Bell, LogOut, Search, LayoutDashboard } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
+import { apiRequest } from "@/lib/api/httpClient";
+
+const NOTIFICATION_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager", "service_manager"]);
+const SUPPORT_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager"]);
 
 const ROLE_NAV = {
   student: [
-    { to: "/student", label: "Dashboard", end: true },
-    { to: "/student/service-request", label: "Service Request" },
-    { to: "/student/complaint-submission", label: "Complaint" },
+    { to: "/student/dashboard", label: "Dashboard", end: true },
+    { to: "/student/requests", label: "My Requests" },
+    { to: "/student/request/new", label: "New Request" },
+    { to: "/student/complaint/new", label: "New Complaint" },
+    { to: "/support", label: "Support" },
   ],
-  field_staff: [{ to: "/field-staff", label: "Dashboard", end: true }],
-  service_manager: [{ to: "/service-manager", label: "Dashboard", end: true }],
-  complaint_manager: [{ to: "/complaint-manager", label: "Dashboard", end: true }],
-  investigator: [{ to: "/investigator", label: "Dashboard", end: true }],
+  investigator: [
+    { to: "/investigator/dashboard", label: "Assigned Complaints", end: true },
+    { to: "/investigator/tasks", label: "Investigation Tasks" },
+  ],
+  field_staff: [
+    { to: "/field-staff/dashboard", label: "Tasks", end: true },
+    { to: "/support", label: "Support" },
+  ],
+  service_manager: [
+    { to: "/service-manager/dashboard", label: "Dashboard", end: true },
+    { to: "/service-manager/requests", label: "Requests" },
+    { to: "/service-manager/reports", label: "Reports" },
+  ],
+  complaint_manager: [
+    { to: "/complaint-manager/dashboard", label: "Dashboard", end: true },
+    { to: "/complaint-manager/complaints", label: "Complaints" },
+    { to: "/support", label: "Support" },
+  ],
   admin: [
-    { to: "/admin", label: "Dashboard", end: true },
+    { to: "/admin/dashboard", label: "Dashboard", end: true },
+    { to: "/admin/reports", label: "Reports" },
     { to: "/admin/users", label: "Users" },
-    { to: "/admin/logs", label: "Logs" },
+    { to: "/admin/analytics/logs", label: "Logs" },
   ],
 };
 
 function normalizeRole(role) {
-  return String(role || "student").trim().toLowerCase();
+  const normalized = String(role || "student").trim().toLowerCase();
+  if (normalized === "staff") {
+    return "field_staff";
+  }
+
+  if (normalized === "investigator") {
+    return "investigator";
+  }
+
+  return normalized;
 }
 
 function getUserSummary(user) {
@@ -51,10 +82,44 @@ export default function DashboardLayout({
   action,
 }) {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { logout, user: authUser } = useAuth();
   const navRole = normalizeRole(role);
   const navItems = ROLE_NAV[navRole] || ROLE_NAV.student;
-  const { name, meta } = getUserSummary(user);
+  const canUseNotifications = NOTIFICATION_ROLES.has(navRole);
+  const { name, meta } = getUserSummary(authUser || user);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  async function refreshUnreadCount() {
+    if (!canUseNotifications) {
+      setUnreadCount(0);
+      return;
+    }
+
+    try {
+      const response = await apiRequest("/notifications/unread-count");
+      setUnreadCount(Number(response?.count || 0));
+    } catch {
+      setUnreadCount(0);
+    }
+  }
+
+  useEffect(() => {
+    refreshUnreadCount();
+
+    const handleNotificationsUpdated = () => refreshUnreadCount();
+    const handleWindowFocus = () => refreshUnreadCount();
+
+    window.addEventListener("sscms-notifications-updated", handleNotificationsUpdated);
+    window.addEventListener("focus", handleWindowFocus);
+
+    const intervalId = window.setInterval(refreshUnreadCount, 30000);
+
+    return () => {
+      window.removeEventListener("sscms-notifications-updated", handleNotificationsUpdated);
+      window.removeEventListener("focus", handleWindowFocus);
+      window.clearInterval(intervalId);
+    };
+  }, [canUseNotifications]);
 
   const handleSignOut = async () => {
     await logout();
@@ -89,9 +154,6 @@ export default function DashboardLayout({
         </nav>
 
         <div className="p-4 border-t border-sidebar-border space-y-1">
-          <button className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent transition-smooth">
-            <Bell className="w-4 h-4" /> Notifications
-          </button>
           <button
             onClick={handleSignOut}
             className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent transition-smooth"
@@ -120,21 +182,32 @@ export default function DashboardLayout({
             )}
 
             <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="sm" onClick={() => navigate("/notifications")} className="hidden sm:inline-flex">
-                Notifications
-              </Button>
+              {canUseNotifications ? (
+                <Button variant="ghost" size="sm" onClick={() => navigate("/notifications")} className="hidden sm:inline-flex relative">
+                  Notifications
+                  {unreadCount > 0 ? (
+                    <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  ) : null}
+                </Button>
+              ) : null}
               <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="hidden sm:inline-flex">
                 Profile
               </Button>
               <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="hidden md:inline-flex">
                 Settings
               </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/support-center")} className="hidden md:inline-flex">
-                Support
-              </Button>
-              <Button variant="ghost" size="icon">
-                <Bell className="w-4 h-4" />
-              </Button>
+              {canUseNotifications ? (
+                <Button variant="ghost" size="icon" onClick={() => navigate("/notifications")} className="relative">
+                  <Bell className="w-4 h-4" />
+                  {unreadCount > 0 ? (
+                    <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground">
+                      {unreadCount > 9 ? "9+" : unreadCount}
+                    </span>
+                  ) : null}
+                </Button>
+              ) : null}
               <div className="flex items-center gap-3 pl-3 border-l border-border">
                 <div className="text-right hidden sm:block">
                   <div className="text-sm font-medium leading-tight">{name}</div>

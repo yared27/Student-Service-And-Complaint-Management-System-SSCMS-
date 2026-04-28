@@ -33,6 +33,7 @@ model User {
 
   strikeCount      Int       @default(0)
   isFlagged        Boolean   @default(false)
+  isActive         Boolean   @default(true)
   lastSuspendedAt  DateTime?
   suspensionEndsAt DateTime?
 
@@ -129,6 +130,7 @@ model Complaint {
   title       String
   description String          @db.Text
   status      ComplaintStatus @default(SUBMITTED)
+  grievanceStatus GrievanceStatus @default(PHASE_1)
   priority    Priority        @default(MEDIUM)
   complaintType ComplaintType    @default(ADMINISTRATIVE)
 
@@ -240,6 +242,9 @@ model Notification {
   type    NotificationType @default(SYSTEM)
   title   String
   message String           @db.Text
+  route   String?
+  entityType String?
+  entityId String?
 
   isRead Boolean   @default(false)
   readAt DateTime?
@@ -288,8 +293,8 @@ enum Role {
 
 enum UserStatus {
   ACTIVE
-  INACTIVE
-  SUSPENDED
+  WARNED
+  BANNED
 }
 
 enum ServiceType {
@@ -319,6 +324,12 @@ enum ComplaintStatus {
   IN_PROGRESS
   RESOLVED
   REJECTED
+}
+
+enum GrievanceStatus {
+  PHASE_1
+  PHASE_2
+  PHASE_3
 }
 
 enum ServiceRequestStatus {

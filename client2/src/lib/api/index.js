@@ -49,6 +49,13 @@ export async function updateComplaintStatus(_token, complaintId, payload) {
   });
 }
 
+export async function updateGrievanceStatus(_token, complaintId, payload) {
+  return apiRequest(`/complaints/${complaintId}/grievance-status`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function assignServiceRequest(_token, requestId, payload) {
   return apiRequest(`/service-requests/${requestId}/assignment`, {
     method: "PATCH",

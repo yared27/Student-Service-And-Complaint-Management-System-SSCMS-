@@ -1,244 +1,178 @@
-import React, { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  Bell,
-  CheckCircle2,
-  ChevronLeft,
-  Inbox,
-  Clock,
-  Trash2,
-  MessageSquare,
-  AlertCircle,
-} from "lucide-react";
+import { AlertCircle, Bell, CheckCircle2, Clock, Inbox, Route } from "lucide-react";
+import DashboardLayout from "@/components/layout/DashboardLayout";
+import { Button } from "@/components/ui/button";
+import { apiRequest } from "@/lib/api/httpClient";
+import { useAuth } from "@/context/AuthContext";
 
-const Notifications = () => {
+const DASHBOARD_PATH_BY_ROLE = {
+  student: "/student/dashboard",
+  service_manager: "/service-manager/dashboard",
+  complaint_manager: "/complaint-manager/dashboard",
+  field_staff: "/field-staff/dashboard",
+  staff: "/field-staff/dashboard",
+};
+
+function getDashboardPath(role) {
+  return DASHBOARD_PATH_BY_ROLE[String(role || "").toLowerCase()] || "/student/dashboard";
+}
+
+function formatRelativeTime(value) {
+  if (!value) {
+    return "Recently";
+  }
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) {
+    return "Recently";
+  }
+
+  const diff = Date.now() - date.getTime();
+  const minutes = Math.round(diff / 60000);
+  if (minutes < 60) return `${Math.max(minutes, 1)}m ago`;
+  const hours = Math.round(minutes / 60);
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.round(hours / 24);
+  return `${days}d ago`;
+}
+
+function getNotificationIcon(type) {
+  const normalized = String(type || "").toUpperCase();
+  if (normalized.includes("COMPLAINT") || normalized.includes("MISUSE") || normalized.includes("SYSTEM")) {
+    return <AlertCircle className="h-5 w-5" />;
+  }
+
+  return <Bell className="h-5 w-5" />;
+}
+
+export default function Notifications() {
   const navigate = useNavigate();
-  const [activeTab, setActiveTab] = useState("all");
+  const { user } = useAuth();
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
 
-  // ✅ MOVE TO STATE (important)
-  const [notifications, setNotifications] = useState([
-    {
-      id: 1,
-      type: "status",
-      title: "ID Replacement Ready",
-      desc: "Your ID Replacement request (SSCMS-442) is now ready for pickup at the Registrar's office.",
-      time: "2 hours ago",
-      unread: true,
-      category: "Priority",
-    },
-    {
-      id: 2,
-      type: "update",
-      title: "Grievance Investigation Started",
-      desc: "An investigator has been assigned to your recent complaint #LGR-4492-2026.",
-      time: "5 hours ago",
-      unread: true,
-      category: "Security",
-    },
-    {
-      id: 3,
-      type: "system",
-      title: "Maintenance Window",
-      desc: "The student portal will undergo scheduled maintenance this Sunday from 2:00 AM to 4:00 AM.",
-      time: "Yesterday",
-      unread: false,
-      category: "System",
-    },
-  ]);
+  const dashboardPath = useMemo(() => getDashboardPath(user?.role), [user?.role]);
 
-  const tabs = ["all", "unread", "resolved"];
+  const loadNotifications = async () => {
+    setLoading(true);
+    setError("");
 
-  // ✅ FILTER LOGIC (clean + working)
-  const filteredNotifications = notifications.filter((notif) => {
-    switch (activeTab) {
-      case "unread":
-        return notif.unread;
-      case "resolved":
-        return !notif.unread; // resolved = read
-      default:
-        return true;
+    try {
+      const response = await apiRequest("/notifications?limit=50");
+      setNotifications(response?.items || []);
+    } catch (requestError) {
+      setError(requestError.message || "Failed to load notifications.");
+    } finally {
+      setLoading(false);
     }
-  });
-
-  // ✅ ACTIONS
-
-  const markAllAsRead = () => {
-    setNotifications((prev) => prev.map((n) => ({ ...n, unread: false })));
   };
 
-  const deleteNotification = (id) => {
-    setNotifications((prev) => prev.filter((n) => n.id !== id));
+  useEffect(() => {
+    loadNotifications();
+  }, []);
+
+  const unreadCount = notifications.filter((item) => !item.isRead).length;
+
+  const markOneRead = async (notificationId) => {
+    await apiRequest(`/notifications/${notificationId}/read`, { method: "PATCH" });
+    await loadNotifications();
   };
 
-  const archiveRead = () => {
-    setNotifications((prev) => prev.filter((n) => n.unread));
+  const markAllRead = async () => {
+    await apiRequest("/notifications/read-all", { method: "PATCH" });
+    await loadNotifications();
+  };
+
+  const openNotification = async (item) => {
+    try {
+      if (!item.isRead) {
+        await markOneRead(item.id);
+      }
+    } finally {
+      navigate(item.route || dashboardPath);
+    }
   };
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans">
-      {/* HEADER */}
-      <header className="bg-white border-b border-slate-100 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
-          <button
-            onClick={() => navigate("/student")}
-            className="flex items-center gap-2 text-slate-400 hover:text-[#002B5B] transition-colors group"
-          >
-            <ChevronLeft size={20} />
-            <span className="text-[11px] font-black uppercase tracking-widest">
-              Back to Dashboard
-            </span>
-          </button>
+    <DashboardLayout
+      role={user?.role || "student"}
+      user={user}
+      topLinks={[{ to: dashboardPath, label: "Go to dashboard", end: true }]}
+    >
+      <div className="space-y-8 pb-20 max-w-6xl mx-auto w-full">
+        <section className="pt-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+          <div className="space-y-2">
+            <h2 className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase">SSCMS Notification Center</h2>
+            <h1 className="text-3xl md:text-5xl font-black text-[#002B5B] leading-tight tracking-tight">Alerts and routed updates</h1>
+            <p className="text-sm text-slate-500 max-w-2xl">Notifications now open the exact routed entity when available, or take you back to your role dashboard.</p>
+          </div>
+          <div className="flex flex-wrap gap-3">
+            <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl shadow-sm">
+              <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">{unreadCount} unread</span>
+            </div>
+            <Button onClick={() => navigate(dashboardPath)} variant="outline" className="rounded-2xl">
+              <Route className="mr-2 h-4 w-4" /> Go to dashboard
+            </Button>
+            <Button onClick={markAllRead} className="rounded-2xl bg-[#002B5B] text-white hover:bg-[#002B5B]/90">
+              <CheckCircle2 className="mr-2 h-4 w-4" /> Mark all read
+            </Button>
+          </div>
+        </section>
 
-          <div className="hidden md:block">
-            <h1 className="text-sm font-black text-[#002B5B] uppercase tracking-[0.3em]">
-              Service Portal | Notification Center
-            </h1>
+        <section className="bg-white rounded-[2rem] border border-slate-100 shadow-sm overflow-hidden">
+          <div className="px-6 py-4 border-b border-slate-100 flex items-center gap-3">
+            <div className="p-2.5 rounded-2xl bg-blue-50 text-[#002B5B]"><Inbox className="h-5 w-5" /></div>
+            <div>
+              <h3 className="font-bold text-[#002B5B]">Notification feed</h3>
+              <p className="text-xs text-slate-400 uppercase tracking-widest">{notifications.length} total items</p>
+            </div>
           </div>
 
-          <div className="w-16" />
-        </div>
-      </header>
-
-      <main className="flex-1 max-w-5xl w-full mx-auto p-6 lg:p-12">
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden flex flex-col min-h-175">
-          {/* CONTROL BAR */}
-          <div className="px-8 py-6 border-b border-slate-50 flex flex-col md:flex-row md:items-center justify-between gap-4 bg-white sticky top-0 z-10">
-            <div className="flex items-center gap-4">
-              <div className="p-3 bg-blue-50 rounded-2xl text-[#002B5B]">
-                <Inbox size={24} />
-              </div>
-              <div>
-                <h2 className="text-xl font-black text-[#002B5B] tracking-tight">
-                  Alerts & Updates
-                </h2>
-                <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                  You have {notifications.filter((n) => n.unread).length} unread
-                  notifications
-                </p>
-              </div>
+          {loading ? (
+            <div className="p-12 text-center text-sm text-slate-500">Loading notifications...</div>
+          ) : error ? (
+            <div className="p-12 text-center text-sm text-red-500">{error}</div>
+          ) : notifications.length === 0 ? (
+            <div className="p-12 text-center text-slate-400">
+              <Bell className="mx-auto h-10 w-10 mb-3" />
+              <p className="text-sm font-semibold">No notifications yet.</p>
             </div>
-
-            {/* TABS */}
-            <div className="flex items-center gap-2 bg-slate-100 p-1.5 rounded-2xl">
-              {tabs.map((tab) => (
+          ) : (
+            <div className="divide-y divide-slate-100">
+              {notifications.map((item) => (
                 <button
-                  key={tab}
-                  onClick={() => setActiveTab(tab)}
-                  className={`px-5 py-2 rounded-xl text-[10px] font-black uppercase tracking-widest transition-all ${
-                    activeTab === tab
-                      ? "bg-white text-[#002B5B] shadow-sm"
-                      : "text-slate-400 hover:text-slate-600"
-                  }`}
+                  key={item.id}
+                  onClick={() => openNotification(item)}
+                  className={`w-full text-left px-6 py-5 flex items-start gap-4 transition-colors hover:bg-slate-50 ${item.isRead ? "bg-white" : "bg-blue-50/30"}`}
                 >
-                  {tab}
+                  <div className={`mt-0.5 p-3 rounded-2xl ${item.isRead ? "bg-slate-100 text-slate-500" : "bg-white text-[#002B5B] shadow-sm"}`}>
+                    {getNotificationIcon(item.type)}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center justify-between gap-2 mb-1">
+                      <p className="font-black text-[#002B5B] truncate">{item.title}</p>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest flex items-center gap-1">
+                        <Clock className="h-3 w-3" /> {formatRelativeTime(item.createdAt)}
+                      </span>
+                    </div>
+                    <p className="text-sm text-slate-500 leading-6">{item.message}</p>
+                    <div className="mt-3 flex flex-wrap gap-2 text-[10px] font-black uppercase tracking-widest">
+                      <span className={`px-2.5 py-1 rounded-md ${item.isRead ? "bg-slate-100 text-slate-400" : "bg-blue-100 text-[#002B5B]"}`}>
+                        {item.isRead ? "Read" : "Unread"}
+                      </span>
+                      {item.route ? <span className="px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700">Routed</span> : null}
+                      {item.entityType ? <span className="px-2.5 py-1 rounded-md bg-slate-100 text-slate-500">{item.entityType}</span> : null}
+                    </div>
+                  </div>
                 </button>
               ))}
             </div>
-          </div>
-
-          {/* LIST */}
-          <div className="flex-1 overflow-y-auto">
-            {filteredNotifications.length > 0 ? (
-              <div className="divide-y divide-slate-50">
-                {filteredNotifications.map((notif) => (
-                  <div
-                    key={notif.id}
-                    className={`group flex items-start gap-6 px-8 py-8 transition-all hover:bg-slate-50/80 cursor-pointer relative ${
-                      notif.unread ? "bg-blue-50/20" : "bg-white"
-                    }`}
-                  >
-                    {notif.unread && (
-                      <div className="absolute left-0 top-0 bottom-0 w-1 bg-[#5B9DFF]" />
-                    )}
-
-                    <div
-                      className={`mt-1 p-4 rounded-2xl ${
-                        notif.unread
-                          ? "bg-white text-[#5B9DFF] shadow-sm"
-                          : "bg-slate-50 text-slate-400"
-                      }`}
-                    >
-                      {notif.type === "status" ? (
-                        <CheckCircle2 size={20} />
-                      ) : notif.type === "update" ? (
-                        <MessageSquare size={20} />
-                      ) : (
-                        <AlertCircle size={20} />
-                      )}
-                    </div>
-
-                    <div className="flex-1">
-                      <div className="flex justify-between items-start mb-1">
-                        <span
-                          className={`text-[9px] font-black uppercase px-2 py-0.5 rounded-md ${
-                            notif.unread
-                              ? "bg-blue-100 text-[#002B5B]"
-                              : "bg-slate-100 text-slate-400"
-                          }`}
-                        >
-                          {notif.category}
-                        </span>
-
-                        <span className="flex items-center gap-1.5 text-[10px] font-bold text-slate-400 italic">
-                          <Clock size={12} /> {notif.time}
-                        </span>
-                      </div>
-
-                      <h4
-                        className={`text-base font-black ${
-                          notif.unread ? "text-[#002B5B]" : "text-slate-500"
-                        }`}
-                      >
-                        {notif.title}
-                      </h4>
-
-                      <p className="text-sm text-slate-500 mt-2">
-                        {notif.desc}
-                      </p>
-                    </div>
-
-                    {/* DELETE */}
-                    <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                      <button
-                        onClick={() => deleteNotification(notif.id)}
-                        className="p-3 hover:bg-white hover:text-red-500 rounded-xl text-slate-300"
-                      >
-                        <Trash2 size={18} />
-                      </button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="h-full flex flex-col items-center justify-center text-center p-12 opacity-40">
-                <Bell size={64} />
-                <p className="text-sm font-black text-[#002B5B] uppercase">
-                  All caught up!
-                </p>
-              </div>
-            )}
-          </div>
-
-          {/* FOOTER */}
-          <div className="p-6 bg-slate-50/50 border-t flex justify-center md:justify-end gap-4">
-            <button
-              onClick={archiveRead}
-              className="px-6 py-3 text-[11px] font-black uppercase text-slate-400 hover:text-[#002B5B]"
-            >
-              Archive Read
-            </button>
-
-            <button
-              onClick={markAllAsRead}
-              className="px-8 py-3 bg-white border rounded-xl text-[11px] font-black text-[#002B5B]"
-            >
-              Mark all as read
-            </button>
-          </div>
-        </div>
-      </main>
-    </div>
+          )}
+        </section>
+      </div>
+    </DashboardLayout>
   );
-};
-
-export default Notifications;
+}

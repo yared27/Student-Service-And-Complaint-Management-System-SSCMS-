@@ -18,8 +18,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
     return {
       where: {
         username: normalized,
-        role: { in: ["STUDENT", "COMPLAINT_MANAGER"] },
-        status: "ACTIVE",
       },
     };
   }
@@ -32,8 +30,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
     return {
       where: {
         email: normalized,
-        role: "SERVICE_MANAGER",
-        status: "ACTIVE",
       },
     };
   }
@@ -46,8 +42,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
     return {
       where: {
         username: normalized,
-        role: "STAFF",
-        status: "ACTIVE",
       },
     };
   }
@@ -60,8 +54,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
     return {
       where: {
         email: normalized,
-        role: "INVESTIGATOR",
-        status: "ACTIVE",
       },
     };
   }
@@ -71,8 +63,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
       return {
         where: {
           email: identifier.toLowerCase(),
-          role: "ADMIN",
-          status: "ACTIVE",
         },
       };
     }
@@ -85,8 +75,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
     return {
       where: {
         username: normalized,
-        role: "ADMIN",
-        status: "ACTIVE",
       },
     };
   }

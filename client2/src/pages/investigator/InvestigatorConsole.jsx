@@ -13,11 +13,6 @@ export default function InvestigatorConsole() {
   const [error, setError] = useState("");
   const [selectedStatus, setSelectedStatus] = useState({});
 
-  const topLinks = [
-    { to: "/investigator", label: "Dashboard" },
-    { to: "/investigator", label: "Investigations" },
-  ];
-
   async function loadData() {
     if (!token) {
       return;
@@ -51,7 +46,7 @@ export default function InvestigatorConsole() {
   };
 
   return (
-    <DashboardLayout role="investigator" topLinks={topLinks} user={user || {}}>
+    <DashboardLayout role="investigator" user={user || {}}>
       <div className="max-w-6xl mx-auto space-y-8">
         <div className="flex items-start justify-between gap-6">
           <div>

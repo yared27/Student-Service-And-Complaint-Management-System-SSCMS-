@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Link, useNavigate } from "react-router-dom";
 import { fetchStudentDashboardData } from "@/lib/api/studentDashboardApi";
+import { updateComplaintStatus } from "@/lib/api";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import {
   FileText,
@@ -93,6 +94,87 @@ const StudentDashboard = () => {
   ];
 
   const displayName = dashboardData.user?.name || "Student";
+  const role = String(dashboardData.user?.role || "STUDENT").toUpperCase();
+  const isInvestigator = role === "INVESTIGATOR";
+
+  const investigatorItems = dashboardData.activities.filter((item) => item.type === "Complaint");
+
+  const handleInvestigationStatusUpdate = async (id, status) => {
+    await updateComplaintStatus(null, id, { status });
+  };
+
+  if (isInvestigator) {
+    return (
+      <DashboardLayout role="investigator" user={dashboardData.user} topLinks={[
+        { to: "/investigator/dashboard", label: "Dashboard", end: true },
+        { to: "/investigator/dashboard#tasks", label: "Investigation Tasks" },
+        { to: "/investigator/dashboard#reports", label: "Report Submission" },
+      ]}>
+        <div className="space-y-8 pb-20 max-w-350 mx-auto w-full bg-slate-50/30">
+          <section className="pt-8 flex flex-col md:flex-row md:items-end justify-between gap-6">
+            <div className="space-y-1">
+              <h2 className="text-[10px] font-bold text-slate-400 tracking-[0.2em] uppercase">SSCMS Investigation Portal</h2>
+              <h1 className="text-3xl md:text-5xl font-black text-[#002B5B] leading-tight tracking-tight">Assigned complaints</h1>
+            </div>
+            <div className="flex flex-wrap gap-3">
+              <div className="flex items-center gap-2 px-3 py-2 bg-blue-50 border border-blue-100 rounded-xl shadow-sm">
+                <span className="text-[10px] font-black text-blue-700 uppercase tracking-widest">{investigatorItems.length} Assigned</span>
+              </div>
+              <div className="flex items-center gap-2 px-3 py-2 bg-orange-50 border border-orange-100 rounded-xl shadow-sm">
+                <span className="text-[10px] font-black text-orange-700 uppercase tracking-widest">{dashboardData.pendingComplaintsCount} Open</span>
+              </div>
+            </div>
+          </section>
+
+          <section id="tasks" className="lg:col-span-8 bg-[#F4F7F9] p-6 md:p-8 rounded-4xl w-full">
+            <div className="mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+              <div>
+                <h3 className="text-xl font-bold text-[#002B5B] tracking-tight">Investigation Tasks</h3>
+                <p className="text-[11px] text-slate-500 mt-1">Status updates for assigned complaints</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {investigatorItems.length > 0 ? investigatorItems.map((item) => (
+                <div key={item.id} className="bg-white rounded-xl shadow-sm p-5 flex flex-col gap-3">
+                  <div className="text-[8px] font-bold text-slate-400 uppercase tracking-widest">{item.type} • {formatFriendlyDate(item.createdAt)}</div>
+                  <h4 className="font-bold text-[13px] text-[#002B5B]">{item.title}</h4>
+                  <div className="flex items-center gap-2">
+                    <select
+                      defaultValue={item.status}
+                      onChange={(event) => handleInvestigationStatusUpdate(item.id, event.target.value)}
+                      className="rounded-2xl border border-border bg-background px-3 py-2 text-sm outline-none"
+                    >
+                      {['UNDER_REVIEW', 'IN_PROGRESS', 'RESOLVED', 'REJECTED'].map((status) => (
+                        <option key={status} value={status}>{status}</option>
+                      ))}
+                    </select>
+                    <button onClick={() => navigate(`/student/submission/${item.id}`)} className="text-[10px] font-black uppercase tracking-widest text-[#002B5B] hover:opacity-70 transition-opacity">Open detail</button>
+                  </div>
+                </div>
+              )) : <div className="col-span-full py-12 text-center text-[10px] font-black uppercase text-slate-400">No assigned complaints found</div>}
+            </div>
+          </section>
+
+          <section id="reports" className="bg-white p-6 md:p-8 rounded-4xl shadow-sm border border-slate-100">
+            <h3 className="text-xl font-bold text-[#002B5B] tracking-tight">Report Submission View</h3>
+            <p className="text-[11px] text-slate-500 mt-1 mb-4">Read-only access to the complaint records you are assigned to review.</p>
+            <div className="space-y-3">
+              {investigatorItems.map((item) => (
+                <div key={item.id} className="flex items-center justify-between rounded-2xl border border-slate-100 px-4 py-3">
+                  <div>
+                    <p className="font-semibold text-[#002B5B]">{item.title}</p>
+                    <p className="text-xs text-slate-400">Status: {item.status}</p>
+                  </div>
+                  <button onClick={() => navigate(`/student/submission/${item.id}`)} className="text-[10px] font-black uppercase tracking-widest text-[#002B5B]">View</button>
+                </div>
+              ))}
+            </div>
+          </section>
+        </div>
+      </DashboardLayout>
+    );
+  }
 
   return (
     <DashboardLayout role="student" user={dashboardData.user} topLinks={topLinks}>

@@ -1,6 +1,7 @@
 import { Navigate, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
+import { getStoredAuth } from "@/lib/authStorage";
 
 function FullPageSpinner() {
   return (
@@ -16,19 +17,21 @@ function FullPageSpinner() {
 export function ProtectedRoute({ children, allowedRoles = [], allowedDepts = [] }) {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const storedAuth = getStoredAuth();
+  const currentUser = user || storedAuth?.user || null;
 
-  if (loading) {
+  if (loading && !currentUser) {
     return <FullPageSpinner />;
   }
 
-  if (!user) {
+  if (!currentUser) {
     return <Navigate to="/login" state={{ from: location.pathname }} replace />;
   }
 
   const normalizedRoles = Array.isArray(allowedRoles) ? allowedRoles.map((item) => String(item).toLowerCase()) : [];
   const normalizedDepts = Array.isArray(allowedDepts) ? allowedDepts.map((item) => String(item).toLowerCase()) : [];
-  const currentRole = String(user?.role || "").toLowerCase();
-  const currentDept = String(user?.dept || user?.department || "").toLowerCase();
+  const currentRole = String(currentUser?.role || "").toLowerCase();
+  const currentDept = String(currentUser?.dept || currentUser?.department || "").toLowerCase();
 
   const roleMatched = !Array.isArray(allowedRoles) || normalizedRoles.length === 0 || normalizedRoles.includes(currentRole);
 

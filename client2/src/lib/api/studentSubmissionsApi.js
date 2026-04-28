@@ -49,6 +49,8 @@ function toComplaintItem(item) {
     priority: item.priority,
     status: toTitleCaseFromEnum(item.status),
     statusRaw: String(item.status || "").toUpperCase(),
+    grievanceStatus: toTitleCaseFromEnum(item.grievanceStatus || "PHASE_1"),
+    grievanceStatusRaw: String(item.grievanceStatus || "PHASE_1").toUpperCase(),
     date: formatDate(item.createdAt),
     createdAt: item.createdAt,
   };
