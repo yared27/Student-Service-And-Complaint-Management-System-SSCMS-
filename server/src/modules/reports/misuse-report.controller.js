@@ -8,6 +8,7 @@ export function createMisuseReportController({ prisma }) {
       try {
         const result = await service.createReport({
           reporterId: req.user?.sub,
+          reporterUsername: req.user?.username,
           reporterRole: req.user?.role,
           payload: req.body,
         });
@@ -21,7 +22,7 @@ export function createMisuseReportController({ prisma }) {
 
     listReports: async (req, res) => {
       try {
-        const result = await service.listReports({ query: req.query });
+        const result = await service.listReports({ query: req.query, user: req.user });
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error("List misuse reports failed:", error);

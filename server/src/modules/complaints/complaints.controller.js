@@ -20,7 +20,7 @@ export function createComplaintsController({ prisma }) {
 
     listComplaints: async (req, res) => {
       try {
-        const result = await service.listComplaints({ userId: req.user?.sub, role: req.user?.role, query: req.query });
+        const result = await service.listComplaints({ userId: req.user?.sub, role: req.user?.role, category: req.user?.category, query: req.query });
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error("List complaints failed:", error);

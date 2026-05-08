@@ -16,18 +16,18 @@ export function createAuthMiddleware({ jwtSecret, prisma }) {
       if (prisma && payload?.sub) {
         const user = await prisma.user.findUnique({
           where: { id: payload.sub },
-          select: { id: true, role: true, status: true },
+          select: { id: true, role: true, status: true, isActive: true, category: true, email: true, username: true },
         });
 
         if (!user) {
           return res.status(401).json({ message: "Unauthorized." });
         }
 
-        if (String(user.status || "").toUpperCase() === "BANNED") {
-          return res.status(403).json({ message: "Your account has been banned." });
+        if (String(user.status || "").toUpperCase() === "BANNED" || user.isActive === false) {
+          return res.status(403).json({ message: "Access denied. Account banned or deactivated." });
         }
 
-        req.user = { sub: user.id, role: user.role };
+        req.user = { sub: user.id, role: user.role, status: user.status, isActive: user.isActive, category: user.category, email: user.email, username: user.username };
         return next();
       }
 

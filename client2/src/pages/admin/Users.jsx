@@ -12,13 +12,13 @@ import { Label } from "@/components/ui/label";
 const ROLE_OPTIONS = ["ADMIN", "SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "STUDENT"];
 const DEPT_OPTIONS = ["ICT", "Student Services", "Student Union", "Student Affairs", "Electrical", "Maintenance"];
 const SERVICE_TYPE_OPTIONS = ["DORMITORY", "CAFETERIA", "ICT", "LIBRARY", "CLASSROOM", "LABORATORY", "UTILITIES", "TRANSPORT"];
-const COMPLAINT_TYPE_OPTIONS = ["ACADEMIC", "ADMINISTRATIVE", "DORMITORY", "CAFETERIA", "DISCIPLINARY", "HEALTH", "SECURITY"];
+const COMPLAINT_TYPE_OPTIONS = ["ACADEMIC", "FOOD_SERVICE", "DISCIPLINE", "GENERAL_SERVICE", "WOMEN_CASE", "HEALTH_CASE", "DISABILITY_CASE", "SPORTS"];
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api").replace(/\/$/, "");
 
 function normalizeStatus(raw, isActive = true) {
   const value = String(raw || "").toUpperCase();
   if (isActive === false) {
-    return "DEACTIVATED";
+    return "BANNED";
   }
 
   if (["SUSPENDED", "BANNED", "INACTIVE"].includes(value)) {
@@ -73,7 +73,6 @@ export default function AdminUsersPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
-    password: "",
     role: "STUDENT",
     department: "ICT",
     status: "ACTIVE",
@@ -106,7 +105,11 @@ export default function AdminUsersPage() {
 
       const matchesSearch = !q || full.includes(q);
       const matchesRole = roleFilter === "ALL" || String(user.role || "").toUpperCase() === roleFilter;
-      const matchesStatus = statusFilter === "ALL" || normalizeStatus(user.status, user.isActive) === statusFilter;
+      const normalizedStatus = normalizeStatus(user.status, user.isActive);
+      const matchesStatus =
+        statusFilter === "ALL" ||
+        normalizedStatus === statusFilter ||
+        (statusFilter === "DEACTIVATED" && normalizedStatus === "BANNED");
       const matchesDept = deptFilter === "ALL" || String(user.department || "").toLowerCase() === deptFilter.toLowerCase();
 
       return matchesSearch && matchesRole && matchesStatus && matchesDept;
@@ -117,7 +120,6 @@ export default function AdminUsersPage() {
     setForm({
       name: "",
       email: "",
-      password: "",
       role: "STUDENT",
       department: "ICT",
       status: "ACTIVE",
@@ -130,11 +132,12 @@ export default function AdminUsersPage() {
   function openEdit(user) {
     setEditingUser(user);
     setForm({
+      username: user.username || "",
       name: user.name || "",
       email: user.email || "",
       role: String(user.role || "STUDENT").toUpperCase(),
       department: user.department || "ICT",
-      status: user.isActive === false ? "ACTIVE" : normalizeStatus(user.status, true),
+      status: user.isActive === false ? "BANNED" : normalizeStatus(user.status, true),
       serviceType: String(user.serviceType || ""),
       complaintType: String(user.complaintType || ""),
     });
@@ -145,12 +148,12 @@ export default function AdminUsersPage() {
     e.preventDefault();
     setSaving(true);
     try {
-      await apiRequest("/admin/users", {
+      const response = await apiRequest("/admin/users", {
         method: "POST",
         body: JSON.stringify(form),
       });
 
-      toast.success("User created.");
+      toast.success(response?.message || "User created and credentials emailed.");
       setCreateOpen(false);
       loadUsers();
     } catch (error) {
@@ -168,9 +171,13 @@ export default function AdminUsersPage() {
 
     setSaving(true);
     try {
+      const isActive = form.status !== "BANNED";
       await apiRequest(`/admin/users/${editingUser.id}`, {
         method: "PATCH",
-        body: JSON.stringify(form),
+        body: JSON.stringify({
+          ...form,
+          isActive,
+        }),
       });
 
       toast.success("User updated.");
@@ -188,7 +195,7 @@ export default function AdminUsersPage() {
     try {
       await apiRequest(`/admin/users/${userId}`, {
         method: "PATCH",
-        body: JSON.stringify({ status: "BANNED" }),
+        body: JSON.stringify({ status: "BANNED", isActive: false }),
       });
 
       window.dispatchEvent(new Event("sscms-notifications-updated"));
@@ -204,7 +211,10 @@ export default function AdminUsersPage() {
     try {
       await apiRequest(`/admin/users/${userId}`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({
+          status,
+          isActive: status !== "BANNED",
+        }),
       });
 
       window.dispatchEvent(new Event("sscms-notifications-updated"));
@@ -372,12 +382,8 @@ export default function AdminUsersPage() {
               <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} required />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>Email {"(optional for staff, investigators, and complaint managers)"}</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input type="password" value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
@@ -414,9 +420,14 @@ export default function AdminUsersPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Complaint Type (for complaint managers)</Label>
-                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.complaintType} onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}>
-                  <option value="">Not set</option>
+                <Label>Complaint Bureau (for complaint managers)</Label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.complaintType}
+                  onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}
+                  required={form.role === "COMPLAINT_MANAGER"}
+                >
+                  <option value="">Select bureau</option>
                   {COMPLAINT_TYPE_OPTIONS.map((type) => (
                     <option key={type} value={type}>
                       {type}
@@ -445,11 +456,15 @@ export default function AdminUsersPage() {
           </DialogHeader>
           <form className="space-y-4" onSubmit={saveEdit}>
             <div className="space-y-2">
+              <Label>Username</Label>
+              <Input value={form.username} disabled />
+            </div>
+            <div className="space-y-2">
               <Label>Name</Label>
               <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} required />
             </div>
             <div className="space-y-2">
-              <Label>Email</Label>
+              <Label>Email {"(optional for staff, investigators, and complaint managers)"}</Label>
               <Input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} />
             </div>
             <div className="grid grid-cols-2 gap-3">
@@ -487,9 +502,14 @@ export default function AdminUsersPage() {
                 </select>
               </div>
               <div className="space-y-2">
-                <Label>Complaint Type</Label>
-                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.complaintType} onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}>
-                  <option value="">Not set</option>
+                <Label>Complaint Bureau</Label>
+                <select
+                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
+                  value={form.complaintType}
+                  onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}
+                  required={form.role === "COMPLAINT_MANAGER"}
+                >
+                  <option value="">Select bureau</option>
                   {COMPLAINT_TYPE_OPTIONS.map((type) => (
                     <option key={type} value={type}>
                       {type}
@@ -497,14 +517,6 @@ export default function AdminUsersPage() {
                   ))}
                 </select>
               </div>
-            </div>
-            <div className="space-y-2">
-              <Label>Status</Label>
-              <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.status} onChange={(e) => setForm((prev) => ({ ...prev, status: e.target.value }))}>
-                <option value="ACTIVE">Active</option>
-                <option value="WARNED">Warned</option>
-                <option value="BANNED">Banned</option>
-              </select>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setEditOpen(false)}>

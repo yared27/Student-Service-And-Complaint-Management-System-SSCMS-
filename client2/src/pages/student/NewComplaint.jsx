@@ -43,13 +43,14 @@ const NewComplaint = () => {
   ];
 
   const complaintTypes = [
-    "ACADEMIC",
-    "ADMINISTRATIVE",
-    "DORMITORY",
-    "CAFETERIA",
-    "DISCIPLINARY",
-    "HEALTH",
-    "SECURITY",
+    { value: "ACADEMIC", label: "Academic" },
+    { value: "FOOD_SERVICE", label: "Food Service" },
+    { value: "DISCIPLINE", label: "Discipline" },
+    { value: "GENERAL_SERVICE", label: "General Service" },
+    { value: "WOMEN_CASE", label: "Women Case" },
+    { value: "HEALTH_CASE", label: "Health Case (Clinic)" },
+    { value: "DISABILITY_CASE", label: "Disability Case" },
+    { value: "SPORTS", label: "Sports" },
   ];
 
   const handleUploadClick = () => fileInputRef.current?.click();
@@ -278,8 +279,8 @@ const NewComplaint = () => {
                       Select complaint type...
                     </option>
                     {complaintTypes.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
+                      <option key={type.value} value={type.value}>
+                        {type.label}
                       </option>
                     ))}
                   </select>

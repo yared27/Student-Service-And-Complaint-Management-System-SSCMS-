@@ -4,6 +4,28 @@ import { PrismaClient } from "@prisma/client";
 const prisma = new PrismaClient();
 
 const DEFAULT_PASSWORD = "Password@123";
+const CAMPUS = "ARBA_MINCH_MAIN";
+
+const CAMPUSES = [
+  "Main Campus",
+  "Abaya Campus",
+  "Neche Sar Campus",
+  "Kulfo Campus",
+  "Chamo Campus",
+  "Sawla Campus",
+];
+
+const COMPLAINT_BUREAUS = [
+  { complaintType: "ACADEMIC", name: "Academic Bureau Investigator", email: "academic_investigator@amu.edu.et" },
+  { complaintType: "FOOD_SERVICE", name: "Food Service Bureau Investigator", email: "foodservice_investigator@amu.edu.et" },
+  { complaintType: "DISCIPLINE", name: "Discipline Bureau Investigator", email: "discipline_investigator@amu.edu.et" },
+  { complaintType: "GENERAL_SERVICE", name: "General Service Bureau Investigator", email: "generalservice_investigator@amu.edu.et" },
+  { complaintType: "WOMEN_CASE", name: "Women Case Bureau Investigator", email: "womencase_investigator@amu.edu.et" },
+  { complaintType: "HEALTH_CASE", name: "Health Case Bureau Investigator", email: "healthcase_investigator@amu.edu.et" },
+  { complaintType: "DISABILITY_CASE", name: "Disability Case Bureau Investigator", email: "disability_investigator@amu.edu.et" },
+  { complaintType: "SPORTS", name: "Sports Bureau Investigator", email: "sports_investigator@amu.edu.et" },
+];
+
 
 async function upsertUser(data) {
   return prisma.user.upsert({
@@ -18,6 +40,7 @@ async function upsertUser(data) {
       phone: data.phone ?? null,
       strikeCount: data.strikeCount ?? 0,
       isFlagged: data.isFlagged ?? false,
+      category: data.category ?? null,
       password: data.password,
     },
     create: {
@@ -31,6 +54,7 @@ async function upsertUser(data) {
       phone: data.phone ?? null,
       strikeCount: data.strikeCount ?? 0,
       isFlagged: data.isFlagged ?? false,
+      category: data.category ?? null,
       password: data.password,
     },
   });
@@ -38,22 +62,163 @@ async function upsertUser(data) {
 
 async function upsertServiceManagerProfile({ userId, serviceType }) {
   return prisma.serviceManager.upsert({
-    where: { userId },
-    update: { serviceType },
+    where: { serviceType },
+    update: { userId },
     create: { userId, serviceType },
   });
 }
 
 async function upsertComplaintManagerProfile({ userId, complaintType }) {
   return prisma.complaintManager.upsert({
-    where: { userId },
-    update: { complaintType },
+    where: { complaintType },
+    update: { userId },
     create: { userId, complaintType },
   });
 }
 
+async function seedStudents(hashedPassword) {
+    const studentDepts = [
+      { prefix: "NSR", name: "Nature Science", count: 5 },
+      { prefix: "SSR", name: "Social Science", count: 5 },
+    ];
+
+    let studentIndex = 0;
+    for (const dept of studentDepts) {
+      for (let i = 1; i <= dept.count; i++) {
+        const idNumber = 2700 + studentIndex;
+        const batchYear = 14;
+        const username = `${dept.prefix}/${idNumber}/${batchYear}`;
+        const campus = CAMPUSES[studentIndex % CAMPUSES.length];
+
+        await upsertUser({
+          username,
+          name: `${dept.prefix} Student ${i}`,
+          email: `${username.toLowerCase().replace(/\//g, "_")}@amu.edu.et`,
+          role: "STUDENT",
+          campus,
+          department: dept.name,
+          password: hashedPassword,
+        });
+
+        studentIndex += 1;
+      }
+    }
+
+    console.log(`Seeded ${studentIndex} students.`);
+  }
+
+  async function seedInvestigators(hashedPassword) {
+    for (const bureau of COMPLAINT_BUREAUS) {
+      const investigatorUsername = `${bureau.complaintType}_INVESTIGATOR_001`;
+
+      await upsertUser({
+        username: investigatorUsername,
+        name: bureau.name,
+        email: bureau.email,
+        role: "INVESTIGATOR",
+        campus: CAMPUS,
+        department: `${bureau.complaintType.replaceAll("_", " ")} Investigations`,
+        password: hashedPassword,
+      });
+    }
+
+    console.log(`Seeded 8 investigators for complaint bureaus.`);
+  }
+
+  async function seedServiceManagers(hashedPassword) {
+    const serviceTypes = [
+      { id: "ICT", name: "ICT Service Manager", email: "ict_service_manager@amu.edu.et" },
+      { id: "DORMITORY", name: "Dormitory Service Manager", email: "dormitory_service_manager@amu.edu.et" },
+      { id: "CAFETERIA", name: "Cafeteria Service Manager", email: "cafeteria_service_manager@amu.edu.et" },
+      { id: "CLASSROOM", name: "Classroom Service Manager", email: "classroom_service_manager@amu.edu.et" },
+      { id: "LIBRARY", name: "Library Service Manager", email: "library_service_manager@amu.edu.et" },
+      { id: "LABORATORY", name: "Laboratory Service Manager", email: "laboratory_service_manager@amu.edu.et" },
+      { id: "UTILITIES", name: "Utilities Service Manager", email: "utilities_service_manager@amu.edu.et" },
+      { id: "TRANSPORT", name: "Transport Service Manager", email: "transport_service_manager@amu.edu.et" },
+    ];
+
+    const managers = [];
+    for (const serviceType of serviceTypes) {
+      const username = `SM-${serviceType.id.substring(0, 3)}`;
+      const manager = await upsertUser({
+        username,
+        name: serviceType.name,
+        email: serviceType.email,
+        role: "SERVICE_MANAGER",
+        campus: CAMPUS,
+        department: `${serviceType.id.replaceAll("_", " ")} Services`,
+        category: serviceType.id,
+        password: hashedPassword,
+      });
+      managers.push({ ...manager, serviceType: serviceType.id });
+    }
+
+    console.log(`Seeded 8 service managers for service types.`);
+    return managers;
+  }
+
+  async function seedStaff(hashedPassword) {
+    const serviceCategories = [
+      "ICT",
+      "DORMITORY",
+      "CAFETERIA",
+      "CLASSROOM",
+      "LIBRARY",
+      "LABORATORY",
+      "UTILITIES",
+      "TRANSPORT",
+    ];
+
+    for (const category of serviceCategories) {
+      for (let i = 1; i <= 2; i++) {
+        const username = `STAFF-${category}-00${i}`;
+        await upsertUser({
+          username,
+          name: `${category} Staff ${i}`,
+          role: "STAFF",
+          campus: CAMPUS,
+          department: `${category.replaceAll("_", " ")} Department`,
+          category,
+          password: hashedPassword,
+        });
+      }
+    }
+
+    console.log(`Seeded 16 staff members for service categories.`);
+  }
+
+
+
 async function main() {
   const hashedPassword = await bcrypt.hash(DEFAULT_PASSWORD, 10);
+
+  // Clean up all data FIRST to avoid conflicts
+  await prisma.activityLog.deleteMany();
+  await prisma.notification.deleteMany();
+  await prisma.misuseReport.deleteMany();
+  await prisma.serviceRequest.deleteMany();
+  await prisma.complaint.deleteMany();
+  await prisma.serviceManager.deleteMany();
+  await prisma.complaintManager.deleteMany();
+  
+  // Delete old users to avoid unique constraint conflicts
+  await prisma.user.deleteMany({
+    where: {
+      role: { in: ["SERVICE_MANAGER", "STAFF"] },
+    },
+  });
+
+  // Seed students with NSR/SSR format
+  await seedStudents(hashedPassword);
+
+  // Seed investigators aligned with complaint bureaus
+  await seedInvestigators(hashedPassword);
+
+  // Seed service managers for each service type
+  const serviceManagers = await seedServiceManagers(hashedPassword);
+
+  // Seed staff for each service category
+  await seedStaff(hashedPassword);
 
   const users = await Promise.all([
     upsertUser({
@@ -61,17 +226,8 @@ async function main() {
       name: "System Admin",
       email: "admin@amu.edu.et",
       role: "ADMIN",
-      campus: "ARBA_MINCH_MAIN",
+      campus: CAMPUS,
       department: "ICT",
-      password: hashedPassword,
-    }),
-    upsertUser({
-      username: "SM-001",
-      name: "Marta Service Manager",
-      email: "service.manager@amu.edu.et",
-      role: "SERVICE_MANAGER",
-      campus: "ARBA_MINCH_MAIN",
-      department: "Student Services",
       password: hashedPassword,
     }),
     upsertUser({
@@ -79,7 +235,7 @@ async function main() {
       name: "Bereket Student Union",
       email: "complaints.union@amu.edu.et",
       role: "COMPLAINT_MANAGER",
-      campus: "ARBA_MINCH_MAIN",
+      campus: CAMPUS,
       department: "Student Union",
       password: hashedPassword,
     }),
@@ -88,24 +244,8 @@ async function main() {
       name: "Alemu Investigation Lead",
       email: "investigator@amu.edu.et",
       role: "INVESTIGATOR",
-      campus: "ARBA_MINCH_MAIN",
+      campus: CAMPUS,
       department: "Student Affairs",
-      password: hashedPassword,
-    }),
-    upsertUser({
-      username: "ELC-023",
-      name: "Field Staff One",
-      role: "STAFF",
-      campus: "KULFO",
-      department: "Electrical",
-      password: hashedPassword,
-    }),
-    upsertUser({
-      username: "ELC-024",
-      name: "Field Staff Two",
-      role: "STAFF",
-      campus: "CHAMO",
-      department: "Maintenance",
       password: hashedPassword,
     }),
     upsertUser({
@@ -154,21 +294,26 @@ async function main() {
 
   const byUsername = Object.fromEntries(users.map((u) => [u.username, u]));
 
-  const serviceManagerProfile = await upsertServiceManagerProfile({
-    userId: byUsername["SM-001"].id,
-    serviceType: "UTILITIES",
+  // Get all service managers from database
+  const allServiceManagers = await prisma.user.findMany({
+    where: { role: "SERVICE_MANAGER" },
   });
+
+  // Create service manager profiles for all 8 managers
+  const serviceManagerProfiles = {};
+  for (const manager of allServiceManagers) {
+    const serviceType = manager.category || "UTILITIES";
+    const profile = await upsertServiceManagerProfile({
+      userId: manager.id,
+      serviceType,
+    });
+    serviceManagerProfiles[serviceType] = profile;
+  }
 
   const complaintManagerProfile = await upsertComplaintManagerProfile({
     userId: byUsername["CM-001"].id,
-    complaintType: "ADMINISTRATIVE",
+    complaintType: "ACADEMIC",
   });
-
-  await prisma.activityLog.deleteMany();
-  await prisma.notification.deleteMany();
-  await prisma.misuseReport.deleteMany();
-  await prisma.serviceRequest.deleteMany();
-  await prisma.complaint.deleteMany();
 
   const complaintA = await prisma.complaint.create({
     data: {
@@ -176,7 +321,7 @@ async function main() {
       description: "Water has been unavailable for 2 days in block C.",
       status: "UNDER_REVIEW",
       priority: "HIGH",
-      complaintType: "DORMITORY",
+      complaintType: "DISCIPLINE",
       createdById: byUsername["NSR/1101/24"].id,
       assignedToId: byUsername["CM-001"].id,
       assignedComplaintManagerId: complaintManagerProfile.id,
@@ -189,7 +334,7 @@ async function main() {
       description: "Food quality and hygiene are poor this week.",
       status: "IN_PROGRESS",
       priority: "MEDIUM",
-      complaintType: "CAFETERIA",
+      complaintType: "FOOD_SERVICE",
       createdById: byUsername["NSR/1102/24"].id,
       assignedToId: byUsername["INV-001"].id,
       assignedComplaintManagerId: complaintManagerProfile.id,
@@ -202,49 +347,56 @@ async function main() {
       description: "This is repeated with abusive text in original submission.",
       status: "REJECTED",
       priority: "LOW",
-      complaintType: "DISCIPLINARY",
+      complaintType: "GENERAL_SERVICE",
       createdById: byUsername["NSR/1104/24"].id,
       assignedToId: byUsername["CM-001"].id,
       assignedComplaintManagerId: complaintManagerProfile.id,
     },
   });
 
-  const requestA = await prisma.serviceRequest.create({
-    data: {
-      title: "Lab projector repair",
-      description: "Projector in room A2 is not turning on.",
-      status: "IN_PROGRESS",
-      priority: "MEDIUM",
-      serviceType: "LABORATORY",
-      createdById: byUsername["NSR/1103/24"].id,
-      assignedToId: byUsername["ELC-023"].id,
-      assignedServiceManagerId: serviceManagerProfile.id,
-    },
+  // Get all staff for assignments
+  const allStaff = await prisma.user.findMany({
+    where: { role: "STAFF" },
   });
 
-  const requestB = await prisma.serviceRequest.create({
-    data: {
-      title: "Classroom fan replacement",
-      description: "Fan in lecture room B5 is broken.",
-      status: "COMPLETED",
-      priority: "LOW",
-      serviceType: "CLASSROOM",
-      createdById: byUsername["SSR/2250/23"].id,
-      assignedToId: byUsername["ELC-024"].id,
-      assignedServiceManagerId: serviceManagerProfile.id,
-      resolvedAt: new Date(),
-    },
-  });
+  // Create service requests for each service type
+  const serviceRequests = [];
+  const serviceTypes = ["LABORATORY", "CLASSROOM", "CAFETERIA", "UTILITIES", "ICT", "DORMITORY", "LIBRARY", "TRANSPORT"];
+  
+  for (let i = 0; i < serviceTypes.length; i++) {
+    const serviceType = serviceTypes[i];
+    const manager = serviceManagerProfiles[serviceType];
+    const staffMember = allStaff.find(s => s.category === serviceType) || allStaff[i % allStaff.length];
+    
+    const request = await prisma.serviceRequest.create({
+      data: {
+        title: `${serviceType} maintenance request`,
+        description: `Urgent maintenance needed in ${serviceType.toLowerCase()} facility.`,
+        status: i === 0 ? "IN_PROGRESS" : i === 1 ? "COMPLETED" : "SUBMITTED",
+        priority: i % 2 === 0 ? "HIGH" : "MEDIUM",
+        serviceType,
+        createdById: byUsername["NSR/1101/24"].id,
+        assignedToId: staffMember?.id || null,
+        assignedServiceManagerId: manager?.id || null,
+        resolvedAt: i === 1 ? new Date() : null,
+      },
+    });
+    
+    serviceRequests.push(request);
+  }
+
+  // Get the cafeteria manager for the misuse report
+  const cafeteriaManager = allServiceManagers.find(m => m.category === "CAFETERIA") || allServiceManagers[0];
 
   await prisma.misuseReport.create({
     data: {
-      reporterId: byUsername["SM-001"].id,
+      reporterId: cafeteriaManager.id,
       reportedUserId: byUsername["NSR/1104/24"].id,
       reason: "FALSE_INFORMATION",
       details: "Student repeatedly submits knowingly false maintenance reports.",
       status: "ACTION_TAKEN",
       actionTaken: "WARNING",
-      serviceRequestId: requestA.id,
+      serviceRequestId: serviceRequests[0]?.id,
       reviewedById: byUsername["ADMIN-001"].id,
       reviewedAt: new Date(),
     },
@@ -259,7 +411,7 @@ async function main() {
       status: "REVIEWED",
       actionTaken: "NONE",
       complaintId: complaintSpam.id,
-      reviewedById: byUsername["SM-001"].id,
+      reviewedById: cafeteriaManager.id,
       reviewedAt: new Date(),
     },
   });
@@ -284,13 +436,13 @@ async function main() {
         userId: byUsername["NSR/1101/24"].id,
         type: "COMPLAINT",
         title: "Complaint received",
-        message: "Your dorm water outage complaint is under review.",
+        message: "Your complaint is under review.",
       },
       {
-        userId: byUsername["ELC-023"].id,
+        userId: allStaff[0]?.id,
         type: "SERVICE_REQUEST",
         title: "New assignment",
-        message: "You were assigned a projector repair request.",
+        message: "You were assigned a new service request.",
       },
       {
         userId: byUsername["NSR/1104/24"].id,
@@ -312,11 +464,11 @@ async function main() {
         description: "Student created complaint for dorm water outage.",
       },
       {
-        actorId: byUsername["SM-001"].id,
-        serviceRequestId: requestA.id,
+        actorId: cafeteriaManager.id,
+        serviceRequestId: serviceRequests[0]?.id,
         action: "SERVICE_REQUEST_ASSIGNED",
         entityType: "SERVICE_REQUEST",
-        entityId: requestA.id,
+        entityId: serviceRequests[0]?.id,
         description: "Service manager assigned request to field staff.",
       },
       {

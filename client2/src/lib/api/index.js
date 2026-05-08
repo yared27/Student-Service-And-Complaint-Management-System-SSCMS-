@@ -77,4 +77,11 @@ export async function reviewMisuseReport(_token, reportId, payload) {
   });
 }
 
+export async function createMisuseReport(_token, payload) {
+  return apiRequest(`/reports/misuse`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export { apiRequest };

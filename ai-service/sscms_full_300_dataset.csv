@@ -1,0 +1,418 @@
+text,type,category,priority
+WiFi not working in my dorm at Arba Minch University since morning,SERVICE,ICT,HIGH
+Internet connection keeps dropping every 5 minutes in the library,SERVICE,ICT,MEDIUM
+Can't login to student portal need urgent help for registration,SERVICE,ICT,HIGH
+Lab computers frozen during my experiment data lost,SERVICE,ICT,HIGH
+Why is the WiFi so slow in classroom block A during lectures,SERVICE,ICT,MEDIUM
+Dorm WiFi password changed without notice can't connect,SERVICE,ICT,MEDIUM
+No internet access in dormitory block C entire floor,SERVICE,ICT,HIGH
+Library printer offline won't print my assignment,SERVICE,ICT,LOW
+Student email server down can't send group project,SERVICE,ICT,HIGH
+WiFi signal too weak in my room 305 block B,SERVICE,ICT,LOW
+Online exam platform crashed 10 minutes before test,SERVICE,ICT,HIGH
+Cafeteria WiFi not working need to check timetable,SERVICE,ICT,LOW
+Portal showing wrong grades need correction,SERVICE,ICT,MEDIUM
+Network overloaded every evening in dorms,SERVICE,ICT,MEDIUM
+Lab software license expired can't run simulation,SERVICE,ICT,HIGH
+WiFi router red light in main cafeteria,SERVICE,ICT,HIGH
+Forgot student portal password urgent reset needed,SERVICE,ICT,LOW
+Video streaming buffering during online class,SERVICE,ICT,LOW
+Complete campus WiFi outage during exam week,SERVICE,ICT,HIGH
+Registration system timeout every attempt,SERVICE,ICT,HIGH
+Light bulb burnt out in dorm room 412,SERVICE,DORMITORY,LOW
+Water leaking from ceiling in bathroom floor wet,SERVICE,DORMITORY,HIGH
+Broken window in dorm letting mosquitoes enter,SERVICE,DORMITORY,HIGH
+Mattress torn need replacement urgently,SERVICE,DORMITORY,MEDIUM
+Main door lock broken can't secure room,SERVICE,DORMITORY,HIGH
+No hot water in showers third day now,SERVICE,DORMITORY,HIGH
+Ceiling fan wobbling dangerously might fall,SERVICE,DORMITORY,HIGH
+AC unit leaking water on floor slippery,SERVICE,DORMITORY,HIGH
+Electrical socket sparking when plugging charger,SERVICE,DORMITORY,HIGH
+Shower head completely broken no water pressure,SERVICE,DORMITORY,MEDIUM
+Toilet won't flush water overflowing,SERVICE,DORMITORY,HIGH
+Bed frame collapsed can't sleep properly,SERVICE,DORMITORY,HIGH
+Radiator making loud banging noise at night,SERVICE,DORMITORY,MEDIUM
+Curtain rod fallen can't block sunlight,SERVICE,DORMITORY,LOW
+Sink completely clogged dirty water standing,SERVICE,DORMITORY,MEDIUM
+Common kitchen fridge not cooling food spoiling,SERVICE,DORMITORY,MEDIUM
+Fire alarm false beeping every hour,SERVICE,DORMITORY,HIGH
+Wardrobe door hinges broken won't close,SERVICE,DORMITORY,LOW
+Black mold growing on bathroom walls health risk,SERVICE,DORMITORY,HIGH
+Power outlet dead in entire room,SERVICE,DORMITORY,MEDIUM
+Food served cold in main cafeteria again,COMPLAINT,CAFETERIA,LOW
+Lunch line taking 45 minutes too long,SERVICE,CAFETERIA,MEDIUM
+Vegetables overcooked mushy every meal,COMPLAINT,CAFETERIA,LOW
+Cashier gave wrong change shorted 50 birr,COMPLAINT,CAFETERIA,MEDIUM
+No vegetarian injera available lunch time,COMPLAINT,CAFETERIA,HIGH
+Staff forgot my order waited 30 minutes,COMPLAINT,CAFETERIA,MEDIUM
+Shiro tastes sour definitely spoiled,COMPLAINT,CAFETERIA,HIGH
+Cafeteria closed 30 minutes early no warning,COMPLAINT,CAFETERIA,HIGH
+Flies swarming food counters unsanitary,COMPLAINT,CAFETERIA,HIGH
+Portion sizes smaller but price same,COMPLAINT,CAFETERIA,LOW
+Kitfo meat smelled rotten got sick,COMPLAINT,CAFETERIA,HIGH
+Cafeteria worker shouted at me for asking extra sauce,COMPLAINT,CAFETERIA,MEDIUM
+No clean plates available lunch rush,COMPLAINT,CAFETERIA,MEDIUM
+Rice undercooked hard crunchy pieces,COMPLAINT,CAFETERIA,LOW
+Same menu every day no variety boring,COMPLAINT,CAFETERIA,LOW
+Milk carton expired on breakfast line,COMPLAINT,CAFETERIA,HIGH
+Doro wat too spicy burned my mouth,COMPLAINT,CAFETERIA,LOW
+No clean tables available sitting on floor,COMPLAINT,CAFETERIA,MEDIUM
+Chairs broken in dining hall falling apart,SERVICE,CAFETERIA,MEDIUM
+Projector bulb dead in lecture hall 101,SERVICE,CLASSROOM,HIGH
+Whiteboard markers dried out no writing,SERVICE,CLASSROOM,LOW
+AC too cold wearing jacket in class,SERVICE,CLASSROOM,MEDIUM
+Microphone feedback loud screeching noise,SERVICE,CLASSROOM,HIGH
+Classroom door handle broken stuck inside,SERVICE,CLASSROOM,HIGH
+No working power sockets for laptops,SERVICE,CLASSROOM,MEDIUM
+Window stuck open birds entering class,SERVICE,CLASSROOM,HIGH
+Chalk dust everywhere breathing issues,SERVICE,CLASSROOM,MEDIUM
+Lights flickering can't see projector,SERVICE,CLASSROOM,HIGH
+Desks wobbly can't write exam properly,SERVICE,CLASSROOM,MEDIUM
+Smartboard unresponsive touch not working,SERVICE,CLASSROOM,HIGH
+Ventilation fan rattling distracting lectures,SERVICE,CLASSROOM,MEDIUM
+Wall clock stopped 2 hours fast,SERVICE,CLASSROOM,LOW
+Laser pointer battery dead professor can't use,SERVICE,CLASSROOM,LOW
+Broken chair collapsed during lecture,SERVICE,CLASSROOM,HIGH
+Bookshelf leaning might fall on students,SERVICE,LIBRARY,HIGH
+Library photocopier paper jam again,SERVICE,LIBRARY,MEDIUM
+Reading lamps dim can't study properly,SERVICE,LIBRARY,LOW
+Elevator broken students carrying books stairs,SERVICE,LIBRARY,HIGH
+No laptop charging points available,SERVICE,LIBRARY,MEDIUM
+Ceiling leaking on study tables wet books,SERVICE,LIBRARY,HIGH
+All individual study rooms booked early,SERVICE,LIBRARY,MEDIUM
+"Quiet zone" full of noisy groups,SERVICE,LIBRARY,LOW
+Returned book on time but late fee charged,COMPLAINT,LIBRARY,MEDIUM
+Librarian very rude refused to help find book,COMPLAINT,LIBRARY,LOW
+Overdue email came after 3 weeks late,COMPLAINT,LIBRARY,MEDIUM
+No recent engineering journals available,COMPLAINT,LIBRARY,HIGH
+Library computers always occupied no turn,SERVICE,LIBRARY,MEDIUM
+Books covered in thick dust coughing fit,COMPLAINT,LIBRARY,LOW
+Online reservation system keeps crashing,COMPLAINT,LIBRARY,HIGH
+Microfilm scanner completely broken,SERVICE,LABORATORY,HIGH
+Chemical cabinet unlocked dangerous,SERVICE,LABORATORY,HIGH
+Fume hood exhaust fan not working,SERVICE,LABORATORY,HIGH
+Pipettes missing from entire drawer,SERVICE,LABORATORY,MEDIUM
+Analytical balance needs calibration error,SERVICE,LABORATORY,MEDIUM
+Bunsen burner won't light gas leaking,SERVICE,LABORATORY,HIGH
+Centrifuge making grinding metal noise,SERVICE,LABORATORY,HIGH
+Water bath temperature jumping randomly,SERVICE,LABORATORY,MEDIUM
+Incubator door gasket torn temperature loss,SERVICE,LABORATORY,HIGH
+Autoclave pressure gauge stuck high,SERVICE,LABORATORY,HIGH
+pH meter display blank no reading,SERVICE,LABORATORY,MEDIUM
+Microscope objective lens scratched,SERVICE,LABORATORY,HIGH
+Drying oven door won't latch,SERVICE,LABORATORY,MEDIUM
+Lab sink no running water experiment ruined,SERVICE,LABORATORY,HIGH
+Emergency shower pull station broken,SERVICE,LABORATORY,HIGH
+Complete power failure chemistry lab,SERVICE,UTILITIES,HIGH
+No water pressure entire dormitory block,SERVICE,UTILITIES,HIGH
+All lights out in lecture halls,SERVICE,UTILITIES,HIGH
+Hot water supply cut off campus wide,SERVICE,UTILITIES,HIGH
+Power surges damaging laptop chargers,SERVICE,UTILITIES,MEDIUM
+Tap water yellow rusty smell bad,SERVICE,UTILITIES,HIGH
+Backup generator failed during outage,SERVICE,UTILITIES,HIGH
+Sewer overflow flooding walkways,SERVICE,UTILITIES,HIGH
+Main water line burst flooding quad,SERVICE,UTILITIES,HIGH
+Electricity cuts every night study affected,SERVICE,UTILITIES,HIGH
+No standby power exam evaluation,SERVICE,UTILITIES,HIGH
+University shuttle bus late 30 minutes daily,COMPLAINT,TRANSPORT,MEDIUM
+Shuttle completely overcrowded standing only,COMPLAINT,TRANSPORT,MEDIUM
+Driver speeding through sharp turns dangerous,COMPLAINT,TRANSPORT,HIGH
+No air conditioning hot bus in summer,COMPLAINT,TRANSPORT,MEDIUM
+Route changed no advance notice missed stop,COMPLAINT,TRANSPORT,HIGH
+Schedule never matches actual timings,COMPLAINT,TRANSPORT,MEDIUM
+Driver refused my valid pass entry denied,COMPLAINT,TRANSPORT,HIGH
+Bus broke down highway stranded 1 hour,COMPLAINT,TRANSPORT,HIGH
+No ramp wheelchair access denied,COMPLAINT,TRANSPORT,HIGH
+Late shuttle caused exam absence,COMPLAINT,TRANSPORT,HIGH
+Transport fees hiked 50% no service improve,COMPLAINT,TRANSPORT,MEDIUM
+Bus tires worn smooth safety hazard,COMPLAINT,TRANSPORT,HIGH
+Need additional buses peak lecture hours,SERVICE,TRANSPORT,MEDIUM
+Bike parking racks completely full,SERVICE,TRANSPORT,LOW
+Electronic bus schedule display wrong,SERVICE,TRANSPORT,LOW
+PA system announcements unclear garbled,SERVICE,TRANSPORT,MEDIUM
+Strong fuel smell inside shuttle,SERVICE,TRANSPORT,MEDIUM
+Campus clinic out of paracetamol fever,COMPLAINT,CLINIC,HIGH
+Doctor not available entire afternoon,SERVICE,CLINIC,HIGH
+Waiting 2 hours simple bandage wound,SERVICE,CLINIC,MEDIUM
+Nurse very rude snapped at my questions,COMPLAINT,CLINIC,LOW
+No working thermometer take temperature,SERVICE,CLINIC,MEDIUM
+Clinic closed during posted hours,SERVICE,CLINIC,HIGH
+Requested antibiotics none available,COMPLAINT,CLINIC,MEDIUM
+Blood pressure machine gives wrong readings,SERVICE,CLINIC,HIGH
+Daily 90 minute queues see nurse,COMPLAINT,CLINIC,MEDIUM
+No privacy curtains examination room,COMPLAINT,CLINIC,MEDIUM
+Emergency stomach pain ignored hours,COMPLAINT,CLINIC,HIGH
+Reception staff gossiping ignore patients,SERVICE,CLINIC,MEDIUM
+No gloves available wound dressing,SERVICE,CLINIC,HIGH
+All common medications out of stock,SERVICE,CLINIC,HIGH
+Doctor dismissed malaria symptoms joke,COMPLAINT,CLINIC,MEDIUM
+Clinic waiting room dirty floors sticky,COMPLAINT,CLINIC,MEDIUM
+No campus ambulance service available,SERVICE,CLINIC,HIGH
+Nurse gave incorrect dosage instructions,COMPLAINT,CLINIC,HIGH
+Clinic AC broken extremely hot inside,COMPLAINT,CLINIC,MEDIUM
+No soap paper towels clinic toilets,SERVICE,CLINIC,LOW
+Off campus referral no transport provided,COMPLAINT,CLINIC,HIGH
+X-ray machine broken 3 weeks now,SERVICE,CLINIC,HIGH
+Registration portal crashed peak hours,SERVICE,ICT,HIGH
+Dorm corridor lights completely dark,SERVICE,DORMITORY,MEDIUM
+No hot water fourth consecutive day,SERVICE,DORMITORY,HIGH
+Ate cafeteria chicken got food poisoning,COMPLAINT,CAFETERIA,HIGH
+Professor projector connection failed lecture,SERVICE,CLASSROOM,HIGH
+Librarian ignored book renewal request,COMPLAINT,LIBRARY,MEDIUM
+Lab partner took all equipment selfish,COMPLAINT,LABORATORY,HIGH
+Power outage destroyed experiment results,SERVICE,UTILITIES,HIGH
+Morning shuttle never arrives on time,COMPLAINT,TRANSPORT,MEDIUM
+Campus clinic no antimalarial tablets,SERVICE,CLINIC,HIGH
+Student portal login loop endless,SERVICE,ICT,MEDIUM
+Dorm room door won't lock properly,SERVICE,DORMITORY,HIGH
+Cafeteria rice completely gone noon,COMPLAINT,CAFETERIA,MEDIUM
+Fan blades loose classroom dangerous,SERVICE,CLASSROOM,HIGH
+Library books wrong shelves can't find,COMPLAINT,LIBRARY,MEDIUM
+Lab ventilation clogged chemical smell,SERVICE,LABORATORY,HIGH
+No clean drinking water fountains,SERVICE,UTILITIES,HIGH
+Transport driver smelled alcohol breath,COMPLAINT,TRANSPORT,HIGH
+Clinic receptionist hung up abruptly,COMPLAINT,CLINIC,MEDIUM
+WiFi blocks Google Scholar downloads,SERVICE,ICT,MEDIUM
+Leaky roof dripping on bed wet sheets,SERVICE,DORMITORY,HIGH
+No fresh injera breakfast line,COMPLAINT,CAFETERIA,MEDIUM
+No extension cords presentation needed,SERVICE,CLASSROOM,MEDIUM
+Study room key lost access denied,SERVICE,LIBRARY,MEDIUM
+Safety goggles missing entire lab,SERVICE,LABORATORY,HIGH
+Street lights out dark walkways unsafe,SERVICE,UTILITIES,MEDIUM
+Bike repair station tools stolen,SERVICE,TRANSPORT,LOW
+Clinic completely out fever medicine,SERVICE,CLINIC,HIGH
+Portal timetable wrong class missed,SERVICE,ICT,MEDIUM
+Neighbor bed frame broke floor damage,SERVICE,DORMITORY,MEDIUM
+Lunch queue 1 hour standing hungry,COMPLAINT,CAFETERIA,MEDIUM
+Projector remote batteries dead,SERVICE,CLASSROOM,LOW
+Librarian double charged lost book fine,COMPLAINT,LIBRARY,MEDIUM
+Chemical hood sash stuck won't move,SERVICE,LABORATORY,HIGH
+No potable water campus wide,SERVICE,UTILITIES,HIGH
+Bus tracker app shows wrong locations,SERVICE,TRANSPORT,MEDIUM
+Nurse refused check temperature fever,COMPLAINT,CLINIC,MEDIUM
+Email notifications not arriving portal,SERVICE,ICT,MEDIUM
+Bathroom tiles cracked slippery falls,SERVICE,DORMITORY,HIGH
+Cafeteria floor greasy slipping hazard,COMPLAINT,CAFETERIA,HIGH
+Smartboard cables pulled out disconnected,SERVICE,CLASSROOM,MEDIUM
+Library group room freezing cold,SERVICE,LIBRARY,MEDIUM
+No oven mitts hot glass handling,SERVICE,LABORATORY,LOW
+Generator exhaust fumes dorm rooms,SERVICE,UTILITIES,HIGH
+No hand sanitizer clinic entrance,SERVICE,CLINIC,MEDIUM
+Need lecture capture WiFi stream,SERVICE,ICT,LOW
+Curtains ripped sunlight blinding,SERVICE,DORMITORY,LOW
+No allergy information menu posted,COMPLAINT,CAFETERIA,MEDIUM
+Lecture hall seats broken uncomfortable,COMPLAINT,CLASSROOM,MEDIUM
+No USB charging lecture hall outlets,SERVICE,CLASSROOM,LOW
+Database search returns irrelevant results,COMPLAINT,LIBRARY,MEDIUM
+Fume hood light bulb burnt out,SERVICE,LABORATORY,MEDIUM
+No recent fire safety inspection,SERVICE,UTILITIES,LOW
+Shuttle seats ripped springs poking,COMPLAINT,TRANSPORT,MEDIUM
+Doctor appointment 2 hours late,SERVICE,CLINIC,MEDIUM
+Can't print syllabus WiFi issue,SERVICE,ICT,LOW
+Dorm heater completely dead winter,SERVICE,DORMITORY,HIGH
+Tibs meat tough chewy inedible,COMPLAINT,CAFETERIA,LOW
+Desk screws loose wobbles badly,SERVICE,CLASSROOM,MEDIUM
+No current textbooks engineering,SERVICE,LIBRARY,HIGH
+Spill cleanup kit empty lab,SERVICE,LABORATORY,HIGH
+Water storage tanks empty supply cut,SERVICE,UTILITIES,HIGH
+Bus step height too high struggle,COMPLAINT,TRANSPORT,MEDIUM
+Pharmacy counter basic meds gone,SERVICE,CLINIC,HIGH
+Grades portal loading indefinitely,SERVICE,ICT,HIGH
+Fire extinguisher pin missing,SERVICE,DORMITORY,HIGH
+Utensils dirty soap taste food,COMPLAINT,CAFETERIA,MEDIUM
+Pointer remote signal weak far seats,SERVICE,CLASSROOM,LOW
+Carrels no back support hurt neck,COMPLAINT,LIBRARY,LOW
+Spectrophotometer baseline unstable,SERVICE,LABORATORY,HIGH
+Emergency exit lights not working,SERVICE,UTILITIES,HIGH
+No priority seating pregnant students,COMPLAINT,TRANSPORT,LOW
+Handwriting prescription can't read,SERVICE,CLINIC,MEDIUM
+Mobile app portal crashes constantly,SERVICE,ICT,HIGH
+Wall cracks widening dorm safety,SERVICE,DORMITORY,HIGH
+No low fat milk options breakfast,COMPLAINT,CAFETERIA,LOW
+Classroom smells mold damp walls,SERVICE,CLASSROOM,MEDIUM
+No current newspapers reading room,COMPLAINT,LIBRARY,LOW
+Electrode dried out pH meter,SERVICE,LABORATORY,MEDIUM
+No water testing kits available,SERVICE,UTILITIES,MEDIUM
+Transport pass scanner malfunction,SERVICE,TRANSPORT,MEDIUM
+Doctor canceled last minute no notice,COMPLAINT,CLINIC,HIGH
+Lab scheduling system double booked,SERVICE,ICT,MEDIUM
+Air vents blocked dust allergies,SERVICE,DORMITORY,MEDIUM
+Salad bar empty 11am daily,COMPLAINT,CAFETERIA,MEDIUM
+No clickers working poll responses,SERVICE,CLASSROOM,LOW
+No thesis printing color option,SERVICE,LIBRARY,MEDIUM
+Cryostat knife blunt sections bad,SERVICE,LABORATORY,HIGH
+No generator monthly test records,SERVICE,UTILITIES,LOW
+Shuttle route skips new hostels,COMPLAINT,TRANSPORT,HIGH
+No female doctor consultation available,COMPLAINT,CLINIC,MEDIUM
+Network blocks researchgate papers,SERVICE,ICT,HIGH
+Balcony rail rusty loose grip,SERVICE,DORMITORY,HIGH
+No certified halal meat tibs,COMPLAINT,CAFETERIA,HIGH
+Theatre aisle lights burnt out,SERVICE,CLASSROOM,HIGH
+No special collections access grad students,SERVICE,LIBRARY,MEDIUM
+Lyophilizer vacuum pump failed,SERVICE,LABORATORY,HIGH
+No diesel standby generator,SERVICE,UTILITIES,HIGH
+No EV charging campus transport,SERVICE,TRANSPORT,MEDIUM
+3 hour wait fever medication,COMPLAINT,CLINIC,HIGH
+ID card scanner gate broken,SERVICE,ICT,MEDIUM
+Common room projector dead movie night,SERVICE,DORMITORY,LOW
+Pasta soggy waterlogged inedible,COMPLAINT,CAFETERIA,LOW
+No document camera microscope slides,SERVICE,CLASSROOM,MEDIUM
+No laptop loan 24hr policy,SERVICE,LIBRARY,MEDIUM
+No gel doc transilluminator UV,SERVICE,LABORATORY,HIGH
+No sewage treatment plant check,SERVICE,UTILITIES,MEDIUM
+No night shuttle safety lights,SERVICE,TRANSPORT,HIGH
+No nebulizer asthma attack,SERVICE,CLINIC,HIGH
+WiFi drops large PDF downloads,SERVICE,ICT,MEDIUM
+Gym treadmill belts worn out,SERVICE,DORMITORY,MEDIUM
+No fresh yogurt breakfast daily,COMPLAINT,CAFETERIA,MEDIUM
+Windows painted can't open ventilation,SERVICE,CLASSROOM,HIGH
+No EndNote citation software,SERVICE,LIBRARY,MEDIUM
+Sonicator frequency wrong bubbles,SERVICE,LABORATORY,MEDIUM
+No electrical grounding check,SERVICE,UTILITIES,HIGH
+No lost found transport office,SERVICE,TRANSPORT,LOW
+Doctor laughed pain complaints,COMPLAINT,CLINIC,HIGH
+Video lecture buffering skips parts,SERVICE,ICT,LOW
+Laundry dryers coin slot jammed,SERVICE,DORMITORY,MEDIUM
+Juice diluted water no flavor,COMPLAINT,CAFETERIA,LOW
+No visualizer overhead transparencies,SERVICE,CLASSROOM,MEDIUM
+No reserve book 24hr loan,SERVICE,LIBRARY,MEDIUM
+No probe sonicator clean,SERVICE,LABORATORY,MEDIUM
+No power quality meter available,SERVICE,UTILITIES,MEDIUM
+Transport no student discount proof,SERVICE,TRANSPORT,LOW
+Nurse lost my medical records,COMPLAINT,CLINIC,HIGH
+Orientation portal video 404 error,SERVICE,ICT,LOW
+Roof leak exam books ruined,SERVICE,DORMITORY,HIGH
+No decaf tea coffee options,COMPLAINT,CAFETERIA,LOW
+Musty smell classroom mold walls,SERVICE,CLASSROOM,MEDIUM
+No OPAC remote access home,SERVICE,LIBRARY,HIGH
+No rotary evaporator collection flask,SERVICE,LABORATORY,HIGH
+No backup water reservoir,SERVICE,UTILITIES,HIGH
+No women priority seating shuttle,COMPLAINT,TRANSPORT,MEDIUM
+Clinic hours sign wrong closed early,SERVICE,CLINIC,MEDIUM
+Zoom blocked university firewall,SERVICE,ICT,HIGH
+Fire door warped won't close,SERVICE,DORMITORY,HIGH
+No vegan kitfo substitute,COMPLAINT,CAFETERIA,MEDIUM
+Lecture capture audio poor quality,SERVICE,CLASSROOM,HIGH
+No wireless presentation system,SERVICE,CLASSROOM,MEDIUM
+No interlibrary loan tracking,SERVICE,LIBRARY,MEDIUM
+No HPLC column guard,SERVICE,LABORATORY,HIGH
+No voltage stabilizer labs,SERVICE,UTILITIES,HIGH
+Shuttle horn broken can't alert,SERVICE,TRANSPORT,MEDIUM
+Blood glucose strips expired,SERVICE,CLINIC,HIGH
+Fee payment gateway timeout,SERVICE,ICT,HIGH
+Vending machine double charged,SERVICE,DORMITORY,MEDIUM
+No napkin holders tables messy,COMPLAINT,CAFETERIA,LOW
+Door hinges squeak loud distraction,SERVICE,CLASSROOM,LOW
+No current periodicals agriculture,SERVICE,LIBRARY,HIGH
+No weighing boats parchment,SERVICE,LABORATORY,LOW
+No emergency shower test,SERVICE,UTILITIES,HIGH
+Driver mobile phone while driving,COMPLAINT,TRANSPORT,HIGH
+No pulse ox finger probe,SERVICE,CLINIC,MEDIUM
+Canvas LMS slow loading assignments,SERVICE,ICT,MEDIUM
+Mini fridge door seal torn,SERVICE,DORMITORY,MEDIUM
+No gluten free injera celiac,COMPLAINT,CAFETERIA,HIGH
+No guest lecturer mic working,SERVICE,CLASSROOM,MEDIUM
+Librarian phone conversation loud,SERVICE,LIBRARY,LOW
+No clean beakers available,SERVICE,LABORATORY,MEDIUM
+No water pressure lab wash,SERVICE,UTILITIES,MEDIUM
+Bus exhaust enters passenger area,COMPLAINT,TRANSPORT,HIGH
+No clean stethoscope earpieces,SERVICE,CLINIC,MEDIUM
+Timetable clash portal error,SERVICE,ICT,MEDIUM
+Pest infestation ants kitchen,SERVICE,DORMITORY,HIGH
+Soup cold stone flavorless,COMPLAINT,CAFETERIA,LOW
+No HDMI adapter laptop projector,SERVICE,CLASSROOM,LOW
+No quiet study headphones loan,SERVICE,LIBRARY,LOW
+No magnetic stir bars,SERVICE,LABORATORY,LOW
+No recycling bins campus,SERVICE,UTILITIES,LOW
+No real-time GPS shuttle tracking,SERVICE,TRANSPORT,HIGH
+Clinic chairs wobble unstable,SERVICE,CLINIC,LOW
+Library catalog misspelled authors,SERVICE,LIBRARY,MEDIUM
+Dorm electricity prepaid meter wrong,SERVICE,DORMITORY,MEDIUM
+No spice level options food,SERVICE,CAFETERIA,LOW
+Blackboard eraser broken dust cloud,SERVICE,CLASSROOM,LOW
+No recent thesis collection digital,SERVICE,LIBRARY,MEDIUM
+Test tube brush broken,SERVICE,LABORATORY,LOW
+No lightning protection system,SERVICE,UTILITIES,MEDIUM
+No bike lane markings campus,SERVICE,TRANSPORT,LOW
+Waiting room TV broken static,COMPLAINT,CLINIC,LOW
+Network blocks YouTube tutorials,SERVICE,ICT,LOW
+Shower drain clogged hair water,SERVICE,DORMITORY,MEDIUM
+No fresh salad greens daily,COMPLAINT,CAFETERIA,MEDIUM
+No backup projector bulb,SERVICE,CLASSROOM,MEDIUM
+No microfiche reader working,SERVICE,LIBRARY,MEDIUM
+No clean petri dishes autoclaved,SERVICE,LABORATORY,MEDIUM
+No energy audit recent,SERVICE,UTILITIES,LOW
+Shuttle timetable printed wrong,SERVICE,TRANSPORT,LOW
+Doctor appointment system double books,COMPLAINT,CLINIC,MEDIUM
+VPN university slow research,SERVICE,ICT,MEDIUM
+Common bathroom no lights,SERVICE,DORMITORY,HIGH
+No low sugar fruits juice,COMPLAINT,CAFETERIA,LOW
+Classroom pointer batteries dead,SERVICE,CLASSROOM,LOW
+No bindery service thesis,SERVICE,LIBRARY,MEDIUM
+No fume scrubber chemicals,SERVICE,LABORATORY,HIGH
+No smart meter electricity,SERVICE,UTILITIES,MEDIUM
+No accessible transport disabled,SERVICE,TRANSPORT,HIGH
+No otoscope ear examination,SERVICE,CLINIC,MEDIUM
+Portal mobile push notifications fail,SERVICE,ICT,LOW
+Ironing board broken laundry,SERVICE,DORMITORY,LOW
+No organic vegetable options,COMPLAINT,CAFETERIA,LOW
+No audience response system,SERVICE,CLASSROOM,MEDIUM
+No rare books climate control,SERVICE,LIBRARY,HIGH
+No shaker orbital speed control,SERVICE,LABORATORY,MEDIUM
+No solar panel maintenance,SERVICE,UTILITIES,LOW
+Transport no student ID validation,SERVICE,TRANSPORT,LOW
+Nurse uniform dirty stains,COMPLAINT,CLINIC,LOW
+Exam result portal hacked wrong scores,SERVICE,ICT,HIGH
+Microwave oven sparking food,SERVICE,DORMITORY,HIGH
+No lactose free milk tea,COMPLAINT,CAFETERIA,MEDIUM
+No interactive whiteboard stylus,SERVICE,CLASSROOM,MEDIUM
+No digital scanner books,SERVICE,LIBRARY,MEDIUM
+No UV cabinet sterilization,SERVICE,LABORATORY,HIGH
+No wastewater pipe inspection,SERVICE,UTILITIES,MEDIUM
+No shuttle CCTV security,SERVICE,TRANSPORT,MEDIUM
+No glucometer calibration,SERVICE,CLINIC,MEDIUM
+Course registration waitlist stuck,SERVICE,ICT,MEDIUM
+Dorm window screen torn mosquitoes,SERVICE,DORMITORY,MEDIUM
+No portion control meat waste,COMPLAINT,CAFETERIA,LOW
+No lecture recording permission form,SERVICE,CLASSROOM,LOW
+No bibliography database access,SERVICE,LIBRARY,HIGH
+No pipette aid electronic,SERVICE,LABORATORY,MEDIUM
+No transformer capacity upgrade,SERVICE,UTILITIES,HIGH
+No pedestrian crossing transport,SERVICE,TRANSPORT,LOW
+Clinic fan broken stuffy hot,SERVICE,CLINIC,MEDIUM
+WiFi 5GHz band disabled slow,SERVICE,ICT,LOW
+Laundry washing machine leaks,SERVICE,DORMITORY,MEDIUM
+No kid-friendly food options,SERVICE,CAFETERIA,LOW
+No podium height adjustment,SERVICE,CLASSROOM,MEDIUM
+No photocopy color option,SERVICE,LIBRARY,LOW
+No desiccator silica gel,SERVICE,LABORATORY,LOW
+No backup transformer,SERVICE,UTILITIES,HIGH
+No transport schedule app,SERVICE,TRANSPORT,MEDIUM
+No privacy screen examination,COMPLAINT,CLINIC,MEDIUM
+Library printer ink empty,SERVICE,LIBRARY,LOW
+Dorm cctv blind spot security,SERVICE,DORMITORY,MEDIUM
+No teff injera weekends,COMPLAINT,CAFETERIA,MEDIUM
+No flip chart markers,SERVICE,CLASSROOM,LOW
+No stack retrieval ladder safe,SERVICE,LIBRARY,MEDIUM
+No chromatography paper,SERVICE,LABORATORY,LOW
+No earthing resistance test,SERVICE,UTILITIES,MEDIUM
+No bollards bike parking,SERVICE,TRANSPORT,LOW
+No waiting list management clinic,SERVICE,CLINIC,MEDIUM
+Student feedback portal down,SERVICE,ICT,LOW
+Dorm fire hose empty,SERVICE,DORMITORY,HIGH
+No dietary supplement stock,SERVICE,CAFETERIA,LOW
+No window blinds control,SERVICE,CLASSROOM,LOW
+No serials cancellation policy,SERVICE,LIBRARY,LOW
+No filter paper grades,SERVICE,LABORATORY,LOW
+No harmonic filter equipment,SERVICE,UTILITIES,LOW
+No shuttle route map,SERVICE,TRANSPORT,LOW
+No triage system clinic,SERVICE,CLINIC,MEDIUM
+Attendance scanner broken,SERVICE,ICT,LOW
+Dorm notice board broken,SERVICE,DORMITORY,LOW
+No combo meal discounts,COMPLAINT,CAFETERIA,LOW
+No backup microphone,SERVICE,CLASSROOM,LOW
+No weeding policy books,SERVICE,LIBRARY,LOW
+No stop watch calibration,SERVICE,LABORATORY,LOW
+No pf correction capacitors,SERVICE,UTILITIES,LOW
+No destination display shuttle,SERVICE,TRANSPORT,LOW
+No patient record digitization,COMPLAINT,CLINIC,LOW

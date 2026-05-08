@@ -1,9 +1,11 @@
 import { useEffect, useState } from "react";
 import { ArrowRight, RefreshCcw, Send } from "lucide-react";
+import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { assignComplaint, listComplaints, listUsers, updateComplaintStatus } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
+import ReportStudentDialog from "@/components/ReportStudentDialog";
 
 const statusOptions = ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "RESOLVED", "REJECTED"];
 
@@ -17,6 +19,7 @@ export default function ComplaintManagerDashboard() {
   const [selectedAssignee, setSelectedAssignee] = useState({});
   const [selectedStatus, setSelectedStatus] = useState({});
   const [complaintTypeFilter, setComplaintTypeFilter] = useState("ALL");
+  const [reportTarget, setReportTarget] = useState(null);
 
   const topLinks = [
     { to: "/complaint-manager/complaints", label: "Complaints", end: true },
@@ -55,8 +58,13 @@ export default function ComplaintManagerDashboard() {
       return;
     }
 
-    await assignComplaint(token, complaintId, { assignedToId });
-    await loadData();
+    try {
+      const response = await assignComplaint(token, complaintId, { assignedToId });
+      toast.success(response?.message || "Complaint assigned successfully.");
+      await loadData();
+    } catch (updateError) {
+      toast.error(updateError instanceof Error ? updateError.message : "Failed to assign complaint.");
+    }
   };
 
   const visibleComplaints =
@@ -74,8 +82,13 @@ export default function ComplaintManagerDashboard() {
       return;
     }
 
-    await updateComplaintStatus(token, complaintId, { status });
-    await loadData();
+    try {
+      const response = await updateComplaintStatus(token, complaintId, { status });
+      toast.success(response?.message || "Complaint updated successfully.");
+      await loadData();
+    } catch (updateError) {
+      toast.error(updateError instanceof Error ? updateError.message : "Failed to update complaint.");
+    }
   };
 
   return (
@@ -184,18 +197,36 @@ export default function ComplaintManagerDashboard() {
                 <div className="mt-3 text-xs text-muted-foreground">
                   Created by {complaint.createdBy?.name || complaint.createdById} / Assigned to {complaint.assignedTo?.name || "Unassigned"}
                 </div>
-                <div className="mt-3">
+                <div className="mt-3 flex flex-wrap gap-2">
                   <button
                     onClick={() => navigate(`/complaint-manager/complaints/${complaint.id}`)}
                     className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
                   >
                     Open complaint detail
                   </button>
+                  <button
+                    onClick={() => setReportTarget(complaint)}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
+                  >
+                    Report student
+                  </button>
                 </div>
               </div>
             ))
           )}
         </div>
+
+        <ReportStudentDialog
+          open={Boolean(reportTarget)}
+          onOpenChange={(open) => {
+            if (!open) {
+              setReportTarget(null);
+            }
+          }}
+          defaultStudentId={reportTarget?.createdBy?.username || reportTarget?.createdById || ""}
+          complaintId={reportTarget?.id}
+          contextLabel="complaint"
+        />
       </div>
     </DashboardLayout>
   );

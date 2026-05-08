@@ -85,7 +85,7 @@ export default function AdminReportsPage() {
                         {report.reportedUser?.name || report.reportedUser?.username || report.reportedUserId}
                       </h2>
                       <p className="text-sm text-muted-foreground">
-                        Reporter role: {report.reporter?.role || "-"} · Student campus: {report.reportedUser?.campus || "-"}
+                        Student ID: {report.reportedUser?.username || report.reportedUserId} · Reporter role: {report.reporter?.role || "-"} · Student campus: {report.reportedUser?.campus || "-"}
                       </p>
                       <p className="text-sm text-muted-foreground">{report.details || "No additional details provided."}</p>
                       <p className="text-xs text-muted-foreground">{formatDate(report.createdAt)}</p>

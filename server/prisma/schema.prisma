@@ -23,6 +23,7 @@ model User {
 
   email  String?    @unique // optional now
   role   Role
+  category Category?
   status UserStatus @default(ACTIVE)
 
   campus     String
@@ -58,8 +59,11 @@ model User {
 
   activityLogsAsActor      ActivityLog[] @relation("ActivityActor")
   activityLogsAsTargetUser ActivityLog[] @relation("ActivityTargetUser")
+  materialRequestsAsRequester MaterialRequest[] @relation("MaterialRequestRequester")
+  materialRequestsAsManager MaterialRequest[] @relation("MaterialRequestManager")
 
   @@index([role, status])
+  @@index([category, role, status])
   @@index([campus, department])
 }
 
@@ -68,26 +72,31 @@ model ServiceManager {
 
   userId String @unique
   serviceType ServiceType
+  category Category?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   assignedServiceRequests ServiceRequest[] @relation("ServiceRequestAssignedServiceManager")
 
   @@unique([serviceType])
+  @@unique([category])
   @@index([serviceType])
+  @@index([category])
 }
 
 model ComplaintManager {
   id String @id @default(uuid())
 
   userId String @unique
-  complaintType ComplaintType @default(ADMINISTRATIVE)
+  complaintType ComplaintType
+  category Category?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   assignedComplaints Complaint[] @relation("ComplaintAssignedComplaintManager")
 
   @@unique([complaintType])
+  @@index([category])
   @@index([complaintType])
 }
 
@@ -132,7 +141,8 @@ model Complaint {
   status      ComplaintStatus @default(SUBMITTED)
   grievanceStatus GrievanceStatus @default(PHASE_1)
   priority    Priority        @default(MEDIUM)
-  complaintType ComplaintType    @default(ADMINISTRATIVE)
+  complaintType ComplaintType    @default(GENERAL_SERVICE)
+  category Category?
 
   createdById  String
   assignedToId String?
@@ -154,6 +164,7 @@ model Complaint {
   @@index([assignedToId, status])
   @@index([complaintType, status, createdAt])
   @@index([assignedComplaintManagerId, status])
+  @@index([category, status, createdAt])
 }
 
 model ComplaintAttachment {
@@ -178,8 +189,12 @@ model ServiceRequest {
   id          String               @id @default(uuid())
   title       String
   description String               @db.Text
+  type        RequestType?
+  category    Category?
   status      ServiceRequestStatus @default(SUBMITTED)
   priority    Priority             @default(MEDIUM)
+  isDuplicate Boolean              @default(false)
+  duplicateScore Float             @default(0)
   serviceType ServiceType @default(UTILITIES)
 
   createdById  String
@@ -189,6 +204,10 @@ model ServiceRequest {
   createdAt  DateTime  @default(now())
   updatedAt  DateTime  @updatedAt
   resolvedAt DateTime?
+  completedAt DateTime?
+  canReopenUntil DateTime?
+  isReopened Boolean @default(false)
+  reopenedAt DateTime?
 
   createdBy  User  @relation("ServiceRequestCreatedBy", fields: [createdById], references: [id], onDelete: Restrict)
   assignedTo User? @relation("ServiceRequestAssignedTo", fields: [assignedToId], references: [id], onDelete: SetNull)
@@ -196,11 +215,35 @@ model ServiceRequest {
 
   misuseReports MisuseReport[]
   activityLogs  ActivityLog[]
+  materialRequests MaterialRequest[]
 
   @@index([createdById, status, createdAt])
   @@index([assignedToId, status])
   @@index([serviceType, status, createdAt])
   @@index([assignedServiceManagerId, status])
+  @@index([category, status, createdAt])
+}
+
+model MaterialRequest {
+  id String @id @default(uuid())
+
+  serviceRequestId String
+  requesterId String
+  managerId String
+
+  note String @db.Text
+  status String @default("PENDING")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  serviceRequest ServiceRequest @relation(fields: [serviceRequestId], references: [id], onDelete: Cascade)
+  requester User @relation("MaterialRequestRequester", fields: [requesterId], references: [id], onDelete: Restrict)
+  manager User @relation("MaterialRequestManager", fields: [managerId], references: [id], onDelete: Restrict)
+
+  @@index([serviceRequestId, status, createdAt])
+  @@index([requesterId, createdAt])
+  @@index([managerId, status, createdAt])
 }
 
 model MisuseReport {
@@ -308,14 +351,32 @@ enum ServiceType {
   TRANSPORT
 }
 
+enum Category {
+  ICT
+  DORMITORY
+  CAFETERIA
+  CLASSROOM
+  LIBRARY
+  LABORATORY
+  UTILITIES
+  TRANSPORT
+  CLINIC
+}
+
+enum RequestType {
+  SERVICE
+  COMPLAINT
+}
+
 enum ComplaintType {
-  ACADEMIC       // grading issues
-  ADMINISTRATIVE // registrar, paperwork, approvals
-  DORMITORY      // room allocation
-  CAFETERIA      // food quality, hygiene
-  DISCIPLINARY   // student misconduct or violations
-  HEALTH         // campus clinic
-  SECURITY       // safety concerns, theft
+  ACADEMIC
+  FOOD_SERVICE
+  DISCIPLINE
+  GENERAL_SERVICE
+  WOMEN_CASE
+  HEALTH_CASE
+  DISABILITY_CASE
+  SPORTS
 }
 
 enum ComplaintStatus {
