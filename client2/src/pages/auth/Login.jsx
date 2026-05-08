@@ -46,10 +46,10 @@ function getIdentityCandidates(identifierRaw) {
   }
 
   if (AMU_EMAIL_REGEX.test(identifier)) {
-    return ["staff", "investigator"];
+    return ["service_manager", "staff", "investigator", "complaint_manager"];
   }
 
-  return ["student", "field", "staff", "investigator"];
+  return ["student", "field", "service_manager", "complaint_manager", "staff", "investigator"];
 }
 
 function getErrorMessage(error) {

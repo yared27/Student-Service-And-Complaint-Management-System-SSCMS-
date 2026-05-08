@@ -183,11 +183,11 @@ export default function DashboardLayout({
 
             <div className="ml-auto flex items-center gap-2">
               {canUseNotifications ? (
-                <Button variant="ghost" size="sm" onClick={() => navigate("/notifications")} className="hidden sm:inline-flex relative">
-                  Notifications
+                <Button variant="ghost" size="icon" onClick={() => navigate("/notifications")} className="relative">
+                  <Bell className="w-4 h-4" />
                   {unreadCount > 0 ? (
-                    <span className="ml-2 inline-flex min-w-5 items-center justify-center rounded-full bg-destructive px-1.5 py-0.5 text-[10px] font-semibold text-destructive-foreground">
-                      {unreadCount > 99 ? "99+" : unreadCount}
+                    <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground">
+                      {unreadCount > 9 ? "9+" : unreadCount}
                     </span>
                   ) : null}
                 </Button>
@@ -198,16 +198,6 @@ export default function DashboardLayout({
               <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="hidden md:inline-flex">
                 Settings
               </Button>
-              {canUseNotifications ? (
-                <Button variant="ghost" size="icon" onClick={() => navigate("/notifications")} className="relative">
-                  <Bell className="w-4 h-4" />
-                  {unreadCount > 0 ? (
-                    <span className="absolute -right-1 -top-1 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[9px] font-semibold text-destructive-foreground">
-                      {unreadCount > 9 ? "9+" : unreadCount}
-                    </span>
-                  ) : null}
-                </Button>
-              ) : null}
               <div className="flex items-center gap-3 pl-3 border-l border-border">
                 <div className="text-right hidden sm:block">
                   <div className="text-sm font-medium leading-tight">{name}</div>

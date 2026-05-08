@@ -55,6 +55,7 @@ export function createServiceRequestsRouter({ prisma, auth }) {
   const router = Router();
   const controller = createServiceRequestsController({ prisma });
 
+  router.post("/ai-suggest", auth.authenticate, controller.aiSuggest);
   router.post("/", auth.authenticate, controller.createRequest);
   router.get("/", auth.authenticate, controller.listRequests);
   router.get("/:id", auth.authenticate, controller.getRequest);

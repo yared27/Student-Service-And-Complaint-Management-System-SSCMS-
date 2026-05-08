@@ -28,37 +28,52 @@ export function createMisuseReportService({ prisma }) {
   const userDelegate = getDelegate(prisma, "user");
   const reportDelegate = getDelegate(prisma, "misuseReport");
 
-  async function createReport({ reporterId, reporterRole, payload }) {
+  async function resolveReportedUser(identifier) {
+    const cleanIdentifier = String(identifier || "").trim();
+    if (!cleanIdentifier) {
+      return null;
+    }
+
+    return userDelegate.findFirst({
+      where: {
+        OR: [{ id: cleanIdentifier }, { username: cleanIdentifier }],
+      },
+      select: { id: true, role: true, status: true, username: true },
+    });
+  }
+
+  async function createReport({ reporterId, reporterUsername, reporterRole, payload }) {
     if (!REPORTER_ROLES.includes(reporterRole)) {
       return { status: 403, body: { message: "Only Service Manager and Student Union can report students." } };
     }
 
-    const reportedUserId = String(payload?.reportedUserId || payload?.studentId || "").trim();
+    const reportedUserInput = String(payload?.reportedUserId || payload?.studentId || "").trim();
     const rawReason = String(payload?.reason || "").trim();
     const normalizedReason = rawReason.toUpperCase();
     const reason = REASONS.includes(normalizedReason) ? normalizedReason : "OTHER";
 
-    if (!reportedUserId || !rawReason) {
+    if (!reportedUserInput || !rawReason) {
       return { status: 400, body: { message: "studentId (or reportedUserId) and reason are required." } };
     }
 
-    if (reportedUserId === reporterId) {
+    if (reportedUserInput === reporterId || reportedUserInput === reporterUsername) {
       return { status: 400, body: { message: "You cannot report yourself." } };
     }
 
-    const reportedUser = await userDelegate.findUnique({
-      where: { id: reportedUserId },
-      select: { id: true, role: true, status: true },
-    });
+    const reportedUser = await resolveReportedUser(reportedUserInput);
 
     if (!reportedUser || reportedUser.role !== "STUDENT") {
       return { status: 400, body: { message: "Only students can be reported." } };
     }
 
+    if (reportedUser.id === reporterId || reportedUser.username === reporterUsername) {
+      return { status: 400, body: { message: "You cannot report yourself." } };
+    }
+
     const report = await reportDelegate.create({
       data: {
         reporterId,
-        reportedUserId,
+        reportedUserId: reportedUser.id,
         reason,
         details: payload?.details
           ? String(payload.details)
@@ -76,7 +91,7 @@ export function createMisuseReportService({ prisma }) {
 
     await prisma.notification.create({
       data: {
-        userId: reportedUserId,
+        userId: reportedUser.id,
         type: "SYSTEM",
         title: "Disciplinary report filed",
         message: `A report was filed against your account for ${reason.toLowerCase().replaceAll("_", " ")}.`,
@@ -86,7 +101,7 @@ export function createMisuseReportService({ prisma }) {
     return { status: 201, body: { message: "Report submitted.", report } };
   }
 
-  async function listReports({ query }) {
+  async function listReports({ query, user }) {
     const status = query?.status ? String(query.status) : undefined;
     const reason = query?.reason ? String(query.reason) : undefined;
     const reportedUserId = query?.reportedUserId ? String(query.reportedUserId) : undefined;
@@ -94,11 +109,30 @@ export function createMisuseReportService({ prisma }) {
     const page = Math.max(Number(query?.page || 1), 1);
     const skip = (page - 1) * limit;
 
-    const where = {
+    // Base filters
+    const baseWhere = {
       ...(status ? { status } : {}),
       ...(reason ? { reason } : {}),
       ...(reportedUserId ? { reportedUserId } : {}),
     };
+
+    // Role-based category filtering: for SERVICE_MANAGER and COMPLAINT_MANAGER, restrict to reports linked
+    // to complaints or service requests that match the manager's category.
+    let where = { ...baseWhere };
+    if (user && (user.role === "SERVICE_MANAGER" || user.role === "COMPLAINT_MANAGER")) {
+      const cat = user.category;
+      where = {
+        AND: [
+          baseWhere,
+          {
+            OR: [
+              { complaint: { is: { category: cat } } },
+              { serviceRequest: { is: { category: cat } } },
+            ],
+          },
+        ],
+      };
+    }
 
     const [total, items] = await prisma.$transaction([
       reportDelegate.count({ where }),
@@ -109,7 +143,8 @@ export function createMisuseReportService({ prisma }) {
         orderBy: { createdAt: "desc" },
         include: {
           reporter: { select: { id: true, name: true, role: true } },
-          reportedUser: { select: { id: true, name: true, username: true, role: true, strikeCount: true, status: true } },
+          // Always include student identity fields (username used for studentId login)
+          reportedUser: { select: { id: true, name: true, username: true, email: true, role: true, strikeCount: true, status: true } },
           reviewedBy: { select: { id: true, name: true, role: true } },
         },
       }),

@@ -68,6 +68,11 @@ function toServiceRequestItem(item) {
     statusRaw: String(item.status || "").toUpperCase(),
     date: formatDate(item.createdAt),
     createdAt: item.createdAt,
+    createdBy: item.createdBy || null,
+    assignedTo: item.assignedTo || null,
+    assignedServiceManager: item.assignedServiceManager || null,
+    canReopenUntil: item.canReopenUntil || null,
+    completedAt: item.completedAt || null,
   };
 }
 

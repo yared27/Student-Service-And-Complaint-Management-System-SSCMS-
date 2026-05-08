@@ -24,9 +24,33 @@ export function createUsersController({ prisma }) {
       }
     },
 
+    updateProfileImage: async (req, res) => {
+      try {
+        const result = await service.updateProfileImage(req.user?.sub, req.body);
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("Update profile image failed:", error);
+        return res.status(500).json({ message: "Failed to update profile image." });
+      }
+    },
+
+    changePassword: async (req, res) => {
+      try {
+        const result = await service.changePassword(req.user?.sub, req.body);
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("Change password failed:", error);
+        return res.status(500).json({ message: "Failed to change password." });
+      }
+    },
+
     listUsers: async (req, res) => {
       try {
-        const result = await service.listUsers(req.query);
+        const result = await service.listUsers({
+          query: req.query,
+          actorId: req.user?.sub,
+          actorRole: req.user?.role,
+        });
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error("List users failed:", error);

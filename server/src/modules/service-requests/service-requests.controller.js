@@ -4,6 +4,19 @@ export function createServiceRequestsController({ prisma }) {
   const service = createServiceRequestsService({ prisma });
 
   return {
+    aiSuggest: async (req, res) => {
+      try {
+        const result = await service.getAiSuggestion({
+          text: req.body?.text,
+        });
+
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("AI suggestion failed:", error);
+        return res.status(500).json({ message: "Failed to get AI suggestion." });
+      }
+    },
+
     createRequest: async (req, res) => {
       try {
         const result = await service.createRequest({
@@ -20,7 +33,7 @@ export function createServiceRequestsController({ prisma }) {
 
     listRequests: async (req, res) => {
       try {
-        const result = await service.listRequests({ userId: req.user?.sub, role: req.user?.role, query: req.query });
+        const result = await service.listRequests({ userId: req.user?.sub, role: req.user?.role, category: req.user?.category, query: req.query });
         return res.status(result.status).json(result.body);
       } catch (error) {
         console.error("List service requests failed:", error);

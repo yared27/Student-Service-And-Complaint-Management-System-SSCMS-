@@ -1,224 +1,373 @@
-import React from "react";
+import { useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  ChevronLeft,
-  User,
-  Mail,
-  Shield,
-  Key,
-  Edit3,
-  Briefcase,
-  LogOut,
-  Bell,
-  Settings,
-} from "lucide-react";
+import { Bell, ChevronLeft, Eye, EyeOff, Key, Loader2, LogOut, Mail, Settings, Shield, Upload, User } from "lucide-react";
+import { toast } from "sonner";
 import { useAuth } from "@/context/AuthContext";
+import { apiRequest } from "@/lib/api/httpClient";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 
-const Profile = () => {
+function roleBadgeClass(role) {
+  switch (String(role || "").toLowerCase()) {
+    case "student":
+      return "bg-emerald-50 text-emerald-700 border-emerald-100";
+    case "service_manager":
+    case "complaint_manager":
+      return "bg-blue-50 text-blue-700 border-blue-100";
+    case "field_staff":
+    case "staff":
+      return "bg-orange-50 text-orange-700 border-orange-100";
+    case "admin":
+      return "bg-slate-900 text-white border-slate-800";
+    default:
+      return "bg-slate-50 text-slate-600 border-slate-200";
+  }
+}
+
+function strongPasswordOk(value) {
+  const text = String(value || "");
+  return /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[^A-Za-z\d]).{10,}$/.test(text);
+}
+
+export default function Profile() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { auth, user, login, logout } = useAuth();
+  const fileInputRef = useRef(null);
+  const passwordSectionRef = useRef(null);
 
-  // Dynamic styling based on user role
-  const getRoleBadge = (role) => {
-    switch (role?.toLowerCase()) {
-      case "student":
-        return "bg-emerald-50 text-emerald-600 border-emerald-100";
-      case "service manager":
-        return "bg-blue-50 text-[#002B5B] border-blue-100";
-      case "field staff":
-        return "bg-orange-50 text-orange-600 border-orange-100";
-      default:
-        return "bg-slate-50 text-slate-600 border-slate-200";
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [selectedPreview, setSelectedPreview] = useState("");
+  const [changePasswordOpen, setChangePasswordOpen] = useState(true);
+  const [showCurrentPassword, setShowCurrentPassword] = useState(false);
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [savingPassword, setSavingPassword] = useState(false);
+  const [passwordForm, setPasswordForm] = useState({
+    currentPassword: "",
+    newPassword: "",
+    confirmPassword: "",
+  });
+
+  const currentUser = user || {};
+  const displayName = currentUser.name || currentUser.username || "User";
+  const roleLabel = String(currentUser.role || "Student").replaceAll("_", " ");
+  const department = currentUser.department || "General";
+  const email = currentUser.email || "-";
+  const profileImage = selectedPreview || currentUser.profileImage || "";
+  const initials = useMemo(() => displayName.slice(0, 1).toUpperCase(), [displayName]);
+
+  async function persistProfileImage(imageUrl) {
+    const response = await apiRequest("/users/profile-image", {
+      method: "POST",
+      body: JSON.stringify({ profileImage: imageUrl }),
+    });
+
+    const nextUser = response?.data?.user || response?.user || currentUser;
+    const nextAuth = {
+      ...(auth || {}),
+      user: nextUser,
+    };
+
+    login(nextAuth);
+    return nextUser;
+  }
+
+  async function handleImageChange(event) {
+    const file = event.target.files?.[0];
+    if (!file) {
+      return;
     }
-  };
 
-  // Fallbacks applied for visualization
-  const name = user?.name || "Ana Mohammed";
-  const id = user?.username || "AMU-2026-SE";
-  const role = user?.role || "Student";
-  const department = user?.department || "Software Engineering";
-  const email = user?.email || "ana.mohammed@amu.edu.et";
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      return;
+    }
+
+    setUploadingImage(true);
+    const previewUrl = URL.createObjectURL(file);
+    setSelectedPreview(previewUrl);
+
+    try {
+      const formData = new FormData();
+      formData.append("files", file);
+
+      const uploadResponse = await apiRequest("/uploads/images", {
+        method: "POST",
+        body: formData,
+      });
+
+      const uploadedUrl = uploadResponse?.files?.[0]?.url;
+      if (!uploadedUrl) {
+        throw new Error("Upload did not return an image URL.");
+      }
+
+      await persistProfileImage(uploadedUrl);
+      toast.success("Profile image updated.");
+    } catch (error) {
+      toast.error(error?.message || "Failed to upload profile image.");
+    } finally {
+      setUploadingImage(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
+  }
+
+  async function handlePasswordChange(event) {
+    event.preventDefault();
+
+    const currentPassword = passwordForm.currentPassword.trim();
+    const newPassword = passwordForm.newPassword.trim();
+    const confirmPassword = passwordForm.confirmPassword.trim();
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      toast.error("All password fields are required.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("New password and confirmation must match.");
+      return;
+    }
+
+    if (!strongPasswordOk(newPassword)) {
+      toast.error("Password must be at least 10 characters and include uppercase, lowercase, number, and symbol.");
+      return;
+    }
+
+    setSavingPassword(true);
+    try {
+      await apiRequest("/users/change-password", {
+        method: "POST",
+        body: JSON.stringify({
+          currentPassword,
+          newPassword,
+        }),
+      });
+
+      toast.success("Password changed. Please sign in again.");
+      setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" });
+      await logout();
+      navigate("/login", { replace: true });
+    } catch (error) {
+      toast.error(error?.message || "Failed to change password.");
+    } finally {
+      setSavingPassword(false);
+    }
+  }
 
   return (
-    <div className="min-h-screen bg-slate-50/50 flex flex-col font-sans pb-20">
-      {/* WEB HEADER */}
-      <header className="bg-white border-b border-slate-100 px-6 py-4">
-        <div className="max-w-6xl mx-auto flex items-center justify-between">
+    <div className="min-h-screen bg-slate-50/60 pb-20">
+      <header className="border-b border-slate-200 bg-white/90 backdrop-blur">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-6 py-4 lg:px-10">
           <button
             onClick={() => navigate(-1)}
-            className="flex items-center gap-2 text-slate-400 hover:text-[#002B5B] transition-colors group"
+            className="flex items-center gap-2 text-slate-500 transition-colors hover:text-slate-900"
           >
-            <ChevronLeft
-              size={20}
-              className="group-hover:-translate-x-1 transition-transform"
-            />
-            <span className="text-[11px] font-black uppercase tracking-widest">
-              Back
-            </span>
+            <ChevronLeft className="h-5 w-5" />
+            <span className="text-xs font-semibold uppercase tracking-[0.24em]">Back</span>
           </button>
-          <div className="hidden md:block">
-            <h1 className="text-sm font-black text-[#002B5B] uppercase tracking-[0.3em]">
-              Service Portal <span className="text-slate-300 mx-2">|</span>{" "}
-              Account Profile
-            </h1>
+
+          <div className="hidden md:block text-center">
+            <p className="text-xs font-semibold uppercase tracking-[0.3em] text-slate-500">SSCMS</p>
+            <h1 className="text-sm font-semibold tracking-[0.18em] text-slate-900">Account Profile</h1>
           </div>
-          <div className="w-16" /> {/* Spacer */}
+
+          <div className="flex items-center gap-2">
+            <Button variant="ghost" size="sm" onClick={() => navigate("/settings")}>
+              <Settings className="mr-2 h-4 w-4" />
+              Settings
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => navigate("/notifications")}>
+              <Bell className="mr-2 h-4 w-4" />
+              Notifications
+            </Button>
+          </div>
         </div>
       </header>
 
-      <main className="flex-1 max-w-6xl w-full mx-auto p-6 lg:p-12 space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-        {/* TOP IDENTITY CARD */}
-        <div className="bg-white rounded-[2.5rem] shadow-sm border border-slate-100 overflow-hidden relative">
-          {/* Banner Background */}
-          <div className="h-40 bg-linear-to-r from-[#002B5B] to-[#004080] relative">
-            <div className="absolute inset-0 opacity-10 bg-[radial-gradient(circle_at_center,var(--tw-gradient-stops))] from-white to-transparent" />
-          </div>
-
-          <div className="px-8 lg:px-12 pb-10">
-            <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 -mt-16 relative z-10">
-              {/* Avatar & Name */}
-              <div className="flex flex-col md:flex-row items-center md:items-end gap-6 text-center md:text-left">
-                <div className="relative">
-                  <div className="h-32 w-32 bg-white rounded-4xl p-2 shadow-xl rotate-3 transition-transform hover:rotate-0 duration-300">
-                    <div className="h-full w-full bg-slate-100 rounded-2xl flex items-center justify-center overflow-hidden">
-                      <User size={48} className="text-slate-300" />
-                    </div>
+      <main className="mx-auto flex max-w-6xl flex-col gap-8 px-6 py-8 lg:px-10">
+        <section className="overflow-hidden rounded-[2rem] border border-slate-200 bg-white shadow-sm">
+          <div className="h-36 bg-gradient-to-r from-slate-950 via-blue-950 to-cyan-800" />
+          <div className="px-6 pb-8 sm:px-8 lg:px-10">
+            <div className="-mt-16 flex flex-col gap-6 md:flex-row md:items-end md:justify-between">
+              <div className="flex flex-col gap-5 md:flex-row md:items-end">
+                <div className="relative h-32 w-32 rounded-[1.75rem] border-4 border-white bg-white p-2 shadow-lg">
+                  <div className="flex h-full w-full items-center justify-center overflow-hidden rounded-[1.25rem] bg-slate-100">
+                    {profileImage ? (
+                      <img src={profileImage} alt={displayName} className="h-full w-full object-cover" />
+                    ) : (
+                      <span className="text-4xl font-bold text-slate-400">{initials}</span>
+                    )}
                   </div>
-                  <button className="absolute -bottom-2 -right-2 p-3 bg-[#5B9DFF] text-white rounded-xl shadow-lg cursor-pointer hover:bg-blue-500 transition-colors hover:-translate-y-1">
-                    <Edit3 size={16} />
+                  <button
+                    type="button"
+                    onClick={() => fileInputRef.current?.click()}
+                    className="absolute -bottom-2 -right-2 inline-flex h-11 w-11 items-center justify-center rounded-xl bg-blue-600 text-white shadow-lg transition hover:bg-blue-700 disabled:opacity-60"
+                    disabled={uploadingImage}
+                  >
+                    {uploadingImage ? <Loader2 className="h-5 w-5 animate-spin" /> : <Upload className="h-5 w-5" />}
                   </button>
+                  <input ref={fileInputRef} type="file" accept="image/*" hidden onChange={handleImageChange} />
                 </div>
 
-                <div className="mb-2">
-                  <h2 className="text-3xl font-black text-[#002B5B] tracking-tight mb-1">
-                    {name}
-                  </h2>
-                  <div className="flex flex-wrap items-center justify-center md:justify-start gap-3">
-                    <p className="text-xs font-bold text-slate-400 uppercase tracking-widest">
-                      ID: {id}
-                    </p>
-                    <span className="hidden md:inline-block w-1.5 h-1.5 rounded-full bg-slate-200" />
-                    <span
-                      className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-lg text-[10px] font-black uppercase tracking-widest border ${getRoleBadge(role)}`}
+                <div className="space-y-2">
+                  <div className="flex flex-wrap items-center gap-3">
+                    <h2 className="text-3xl font-bold text-slate-950">{displayName}</h2>
+                    <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${roleBadgeClass(currentUser.role)}`}>
+                      <Shield className="mr-1 h-3.5 w-3.5" />
+                      {roleLabel}
+                    </span>
+                  </div>
+                  <p className="text-sm text-slate-500">{currentUser.username || "-"}</p>
+                  <p className="max-w-2xl text-sm text-slate-600">
+                    Keep your account information current, upload a profile photo, and manage your password from one place.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex flex-wrap gap-3">
+                <Button variant="outline" onClick={() => passwordSectionRef.current?.scrollIntoView({ behavior: "smooth", block: "start" })}>
+                  <Key className="mr-2 h-4 w-4" />
+                  Change Password
+                </Button>
+                <Button variant="destructive" onClick={logout}>
+                  <LogOut className="mr-2 h-4 w-4" />
+                  Sign Out
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section className="grid gap-6 lg:grid-cols-2">
+          <div className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <h3 className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Profile Details</h3>
+            <div className="mt-6 space-y-5">
+              <div className="flex items-center gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                <User className="h-5 w-5 text-slate-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Name</p>
+                  <p className="font-medium text-slate-950">{displayName}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                <Mail className="h-5 w-5 text-slate-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Email</p>
+                  <p className="font-medium text-slate-950">{email}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 rounded-2xl bg-slate-50 px-4 py-4">
+                <Shield className="h-5 w-5 text-slate-500" />
+                <div>
+                  <p className="text-xs font-semibold uppercase tracking-[0.2em] text-slate-400">Department</p>
+                  <p className="font-medium text-slate-950">{department}</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div ref={passwordSectionRef} className="rounded-[1.75rem] border border-slate-200 bg-white p-6 shadow-sm">
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <h3 className="text-xs font-semibold uppercase tracking-[0.28em] text-slate-500">Security</h3>
+                <p className="mt-2 text-lg font-semibold text-slate-950">Change password</p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setChangePasswordOpen((current) => !current)}
+                className="text-sm font-medium text-blue-700 hover:underline"
+              >
+                {changePasswordOpen ? "Hide" : "Show"}
+              </button>
+            </div>
+
+            {changePasswordOpen ? (
+              <form onSubmit={handlePasswordChange} className="mt-6 space-y-4">
+                <div className="space-y-2">
+                  <Label htmlFor="currentPassword">Current password</Label>
+                  <div className="relative">
+                    <Input
+                      id="currentPassword"
+                      type={showCurrentPassword ? "text" : "password"}
+                      value={passwordForm.currentPassword}
+                      onChange={(event) => setPasswordForm((prev) => ({ ...prev, currentPassword: event.target.value }))}
+                      placeholder="Enter current password"
+                      autoComplete="current-password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowCurrentPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900"
+                      aria-label={showCurrentPassword ? "Hide current password" : "Show current password"}
                     >
-                      <Shield size={12} /> {role}
-                    </span>
+                      {showCurrentPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
-              </div>
 
-              {/* Action Buttons */}
-              <div className="flex items-center justify-center gap-3">
-                <button className="p-4 bg-slate-50 text-slate-400 rounded-2xl hover:bg-slate-100 hover:text-[#002B5B] transition-colors">
-                  <Settings size={20} />
-                </button>
-                <button className="px-6 py-4 bg-red-50 text-red-600 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center gap-2 hover:bg-red-100 transition-colors">
-                  <LogOut size={16} /> Sign Out
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* BOTTOM GRID */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Institutional Details */}
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col">
-            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-8 flex items-center gap-2">
-              <div className="w-2 h-2 bg-[#002B5B] rounded-full" />
-              Institutional Information
-            </h3>
-
-            <div className="space-y-6 flex-1">
-              <div className="flex items-center gap-5 p-4 rounded-2xl hover:bg-slate-50 transition-colors">
-                <div className="p-4 bg-blue-50/50 rounded-2xl text-[#002B5B]">
-                  <Briefcase size={22} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                    Department / Faculty
-                  </p>
-                  <p className="text-base font-black text-[#002B5B]">
-                    {department}
-                  </p>
-                </div>
-              </div>
-
-              <div className="w-full h-px bg-slate-100" />
-
-              <div className="flex items-center gap-5 p-4 rounded-2xl hover:bg-slate-50 transition-colors">
-                <div className="p-4 bg-blue-50/50 rounded-2xl text-[#002B5B]">
-                  <Mail size={22} />
-                </div>
-                <div>
-                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-1">
-                    Official Email
-                  </p>
-                  <p className="text-base font-black text-[#002B5B]">{email}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Account & Security */}
-          <div className="bg-white rounded-[2.5rem] p-8 shadow-sm border border-slate-100 flex flex-col">
-            <h3 className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-8 flex items-center gap-2">
-              <div className="w-2 h-2 bg-slate-300 rounded-full" />
-              Security & Preferences
-            </h3>
-
-            <div className="space-y-4 flex-1">
-              <button className="w-full flex items-center justify-between p-5 hover:bg-slate-50 border border-transparent hover:border-slate-100 rounded-2xl transition-all cursor-pointer group">
-                <div className="flex items-center gap-5">
-                  <div className="p-3 bg-slate-100 rounded-xl group-hover:bg-[#002B5B] group-hover:shadow-md transition-all duration-300">
-                    <Key
-                      size={18}
-                      className="text-slate-500 group-hover:text-white transition-colors"
+                <div className="space-y-2">
+                  <Label htmlFor="newPassword">New password</Label>
+                  <div className="relative">
+                    <Input
+                      id="newPassword"
+                      type={showNewPassword ? "text" : "password"}
+                      value={passwordForm.newPassword}
+                      onChange={(event) => setPasswordForm((prev) => ({ ...prev, newPassword: event.target.value }))}
+                      placeholder="At least 10 characters"
+                      autoComplete="new-password"
                     />
-                  </div>
-                  <div className="text-left">
-                    <span className="block text-sm font-black text-[#002B5B] mb-0.5">
-                      Change Password
-                    </span>
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Update your security key
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setShowNewPassword((current) => !current)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-900"
+                      aria-label={showNewPassword ? "Hide new password" : "Show new password"}
+                    >
+                      {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                    </button>
                   </div>
                 </div>
-                <ChevronLeft
-                  size={18}
-                  className="text-slate-300 rotate-180 group-hover:text-[#002B5B] transition-colors group-hover:translate-x-1"
-                />
-              </button>
 
-              <button className="w-full flex items-center justify-between p-5 hover:bg-slate-50 border border-transparent hover:border-slate-100 rounded-2xl transition-all cursor-pointer group">
-                <div className="flex items-center gap-5">
-                  <div className="p-3 bg-slate-100 rounded-xl group-hover:bg-[#002B5B] group-hover:shadow-md transition-all duration-300">
-                    <Bell
-                      size={18}
-                      className="text-slate-500 group-hover:text-white transition-colors"
-                    />
-                  </div>
-                  <div className="text-left">
-                    <span className="block text-sm font-black text-[#002B5B] mb-0.5">
-                      Notification Settings
-                    </span>
-                    <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                      Manage email & portal alerts
-                    </span>
-                  </div>
+                <div className="space-y-2">
+                  <Label htmlFor="confirmPassword">Confirm password</Label>
+                  <Input
+                    id="confirmPassword"
+                    type="password"
+                    value={passwordForm.confirmPassword}
+                    onChange={(event) => setPasswordForm((prev) => ({ ...prev, confirmPassword: event.target.value }))}
+                    placeholder="Re-enter new password"
+                    autoComplete="new-password"
+                  />
                 </div>
-                <ChevronLeft
-                  size={18}
-                  className="text-slate-300 rotate-180 group-hover:text-[#002B5B] transition-colors group-hover:translate-x-1"
-                />
-              </button>
-            </div>
+
+                <p className="text-xs text-slate-500">Use a strong password with uppercase, lowercase, number, and symbol.</p>
+
+                <div className="flex justify-end gap-3">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setPasswordForm({ currentPassword: "", newPassword: "", confirmPassword: "" })}
+                    disabled={savingPassword}
+                  >
+                    Clear
+                  </Button>
+                  <Button type="submit" disabled={savingPassword}>
+                    {savingPassword ? (
+                      <span className="inline-flex items-center gap-2">
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Saving...
+                      </span>
+                    ) : (
+                      "Update password"
+                    )}
+                  </Button>
+                </div>
+              </form>
+            ) : null}
           </div>
-        </div>
+        </section>
       </main>
     </div>
   );
-};
-
-export default Profile;
+}

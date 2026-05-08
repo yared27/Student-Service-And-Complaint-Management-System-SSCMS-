@@ -1,6 +1,6 @@
+import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { config } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
@@ -14,8 +14,6 @@ import { createActivityLogsRouter } from "./src/routes/activity-logs.routes.js";
 import { createUploadsRouter } from "./src/routes/uploads.routes.js";
 import { createAuthMiddleware } from "./src/middlewares/auth.middleware.js";
 import { swaggerSpec } from "./src/config/swagger.js";
-
-config();
 
 const app = express();
 const prisma = new PrismaClient();

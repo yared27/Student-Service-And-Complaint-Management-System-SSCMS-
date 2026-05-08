@@ -1,9 +1,12 @@
 import bcrypt from "bcrypt";
+import crypto from "crypto";
+import { sendUserCredentialsEmail } from "../../lib/mailer.js";
 
 const ROLE_VALUES = new Set(["STUDENT", "SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "INVESTIGATOR", "ADMIN"]);
 const STATUS_VALUES = new Set(["ACTIVE", "WARNED", "BANNED"]);
 const SERVICE_TYPE_VALUES = new Set(["DORMITORY", "CAFETERIA", "ICT", "LIBRARY", "CLASSROOM", "LABORATORY", "UTILITIES", "TRANSPORT"]);
-const COMPLAINT_TYPE_VALUES = new Set(["ACADEMIC", "ADMINISTRATIVE", "DORMITORY", "CAFETERIA", "DISCIPLINARY", "HEALTH", "SECURITY"]);
+const CATEGORY_VALUES = new Set(["ICT", "DORMITORY", "CAFETERIA", "CLASSROOM", "LIBRARY", "LABORATORY", "UTILITIES", "TRANSPORT", "CLINIC"]);
+const COMPLAINT_TYPE_VALUES = new Set(["ACADEMIC", "FOOD_SERVICE", "DISCIPLINE", "GENERAL_SERVICE", "WOMEN_CASE", "HEALTH_CASE", "DISABILITY_CASE", "SPORTS"]);
 
 function normalizeRole(raw) {
   const normalized = String(raw || "").trim().toUpperCase();
@@ -29,6 +32,25 @@ function normalizeServiceType(raw) {
 
 function normalizeComplaintType(raw) {
   return String(raw || "").trim().toUpperCase();
+}
+
+function normalizeCategory(raw) {
+  return String(raw || "").trim().toUpperCase();
+}
+
+function mapComplaintTypeToCategory(complaintType) {
+  const mapping = {
+    ACADEMIC: "CLASSROOM",
+    FOOD_SERVICE: "CAFETERIA",
+    DISCIPLINE: "DORMITORY",
+    GENERAL_SERVICE: "UTILITIES",
+    WOMEN_CASE: "UTILITIES",
+    HEALTH_CASE: "CLINIC",
+    DISABILITY_CASE: "CLINIC",
+    SPORTS: "CLASSROOM",
+  };
+
+  return mapping[String(complaintType || "").trim().toUpperCase()] || "UTILITIES";
 }
 
 function normalizeModerationAction(raw) {
@@ -79,10 +101,40 @@ function toAdminUser(user) {
     strikeCount: user.strikeCount,
     isFlagged: user.isFlagged,
     isActive: user.isActive,
+    category: user.category || null,
+    profileImage: user.profileImage || null,
     createdAt: user.createdAt,
     serviceType: user.serviceManagerProfile?.serviceType || null,
     complaintType: user.complaintManagerProfile?.complaintType || null,
+    complaintCategory: user.complaintManagerProfile?.category || null,
   };
+}
+
+function generateStrongPassword(length = 12) {
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const numbers = "0123456789";
+  const symbols = "!@#$%^&*()_+-=[]{}|;:,.<>?";
+  const all = uppercase + lowercase + numbers + symbols;
+
+  const randomChar = (chars) => chars[crypto.randomInt(chars.length)];
+  const passwordChars = [
+    randomChar(uppercase),
+    randomChar(lowercase),
+    randomChar(numbers),
+    randomChar(symbols),
+  ];
+
+  while (passwordChars.length < length) {
+    passwordChars.push(randomChar(all));
+  }
+
+  for (let index = passwordChars.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(index + 1);
+    [passwordChars[index], passwordChars[swapIndex]] = [passwordChars[swapIndex], passwordChars[index]];
+  }
+
+  return passwordChars.join("");
 }
 
 function escapeCsv(value) {
@@ -104,6 +156,65 @@ function generateUsername(name, email) {
 
   const base = baseFromEmail || baseFromName || "user";
   return `${base}.${Date.now().toString().slice(-5)}`.toUpperCase();
+}
+
+function randomNumericSuffix(length = 5) {
+  const min = 10 ** (length - 1);
+  const max = (10 ** length) - 1;
+  return String(crypto.randomInt(min, max + 1));
+}
+
+function normalizeUsernamePart(value) {
+  return String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function buildCredentialUsername({ role, category, complaintType, email, name }) {
+  const normalizedRole = String(role || "").trim().toUpperCase();
+  if (normalizedRole === "ADMIN" || normalizedRole === "SERVICE_MANAGER") {
+    return String(email || "").trim().toLowerCase();
+  }
+
+  const bureauSeed = normalizedRole === "COMPLAINT_MANAGER" || normalizedRole === "INVESTIGATOR"
+    ? complaintType || category
+    : category;
+  const resolvedCategory = normalizeUsernamePart(bureauSeed);
+  const rolePart = normalizedRole === "COMPLAINT_MANAGER"
+    ? "bureau-manager"
+    : normalizedRole === "INVESTIGATOR"
+      ? "investigator"
+      : normalizeUsernamePart(normalizedRole);
+
+  if (!resolvedCategory) {
+    throw new Error("category or complaintType is required for credential generation.");
+  }
+
+  return `${resolvedCategory}-${rolePart}-${randomNumericSuffix(3)}`;
+}
+
+function generateSecurePassword(length = 12) {
+  const uppercase = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+  const lowercase = "abcdefghijklmnopqrstuvwxyz";
+  const numbers = "0123456789";
+  const symbols = "!@#$%^&*()_-+=";
+  const all = uppercase + lowercase + numbers + symbols;
+
+  const pick = (chars) => chars[crypto.randomInt(chars.length)];
+  const chars = [pick(uppercase), pick(lowercase), pick(numbers), pick(symbols)];
+
+  while (chars.length < length) {
+    chars.push(pick(all));
+  }
+
+  for (let index = chars.length - 1; index > 0; index -= 1) {
+    const swapIndex = crypto.randomInt(index + 1);
+    [chars[index], chars[swapIndex]] = [chars[swapIndex], chars[index]];
+  }
+
+  return chars.join("");
 }
 
 function isWarnedStatusUnsupported(error) {
@@ -136,14 +247,18 @@ async function countUsersByStatusText(prisma, statusValues) {
 }
 
 async function syncManagerProfiles(tx, { userId, role, serviceType, complaintType }) {
+  const resolvedServiceType = normalizeServiceType(serviceType);
+  const resolvedComplaintType = normalizeComplaintType(complaintType);
+  const resolvedComplaintCategory = resolvedComplaintType ? mapComplaintTypeToCategory(resolvedComplaintType) : null;
+
   if (role === "SERVICE_MANAGER") {
-    if (!serviceType || !SERVICE_TYPE_VALUES.has(serviceType)) {
+    if (!resolvedServiceType || !SERVICE_TYPE_VALUES.has(resolvedServiceType)) {
       return { status: 400, message: "serviceType is required for SERVICE_MANAGER." };
     }
 
     const serviceConflict = await tx.serviceManager.findFirst({
       where: {
-        serviceType,
+        serviceType: resolvedServiceType,
         NOT: { userId },
       },
       select: { id: true },
@@ -155,8 +270,8 @@ async function syncManagerProfiles(tx, { userId, role, serviceType, complaintTyp
 
     await tx.serviceManager.upsert({
       where: { userId },
-      update: { serviceType },
-      create: { userId, serviceType },
+      update: { serviceType: resolvedServiceType, category: resolvedServiceType },
+      create: { userId, serviceType: resolvedServiceType, category: resolvedServiceType },
     });
 
     await tx.complaintManager.deleteMany({ where: { userId } });
@@ -164,13 +279,13 @@ async function syncManagerProfiles(tx, { userId, role, serviceType, complaintTyp
   }
 
   if (role === "COMPLAINT_MANAGER") {
-    if (!complaintType || !COMPLAINT_TYPE_VALUES.has(complaintType)) {
+    if (!resolvedComplaintType || !COMPLAINT_TYPE_VALUES.has(resolvedComplaintType)) {
       return { status: 400, message: "complaintType is required for COMPLAINT_MANAGER." };
     }
 
     const complaintConflict = await tx.complaintManager.findFirst({
       where: {
-        complaintType,
+        complaintType: resolvedComplaintType,
         NOT: { userId },
       },
       select: { id: true },
@@ -182,8 +297,8 @@ async function syncManagerProfiles(tx, { userId, role, serviceType, complaintTyp
 
     await tx.complaintManager.upsert({
       where: { userId },
-      update: { complaintType },
-      create: { userId, complaintType },
+      update: { complaintType: resolvedComplaintType, category: resolvedComplaintCategory },
+      create: { userId, complaintType: resolvedComplaintType, category: resolvedComplaintCategory },
     });
 
     await tx.serviceManager.deleteMany({ where: { userId } });
@@ -206,6 +321,8 @@ export function createUsersService({ prisma }) {
         email: true,
         role: true,
         status: true,
+        isActive: true,
+        profileImage: true,
         campus: true,
         department: true,
         phone: true,
@@ -242,6 +359,7 @@ export function createUsersService({ prisma }) {
         email: true,
         role: true,
         status: true,
+        isActive: true,
         campus: true,
         department: true,
         phone: true,
@@ -258,17 +376,119 @@ export function createUsersService({ prisma }) {
     };
   }
 
-  async function listUsers(query) {
-    const role = query?.role ? String(query.role) : undefined;
-    const status = query?.status ? String(query.status) : undefined;
+  async function updateProfileImage(userId, payload) {
+    const profileImage = String(payload?.profileImage || payload?.imageUrl || payload?.url || "").trim();
+
+    if (!profileImage) {
+      return { status: 400, body: { message: "profileImage is required." } };
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: { profileImage },
+      select: {
+        id: true,
+        username: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        isActive: true,
+        campus: true,
+        department: true,
+        phone: true,
+        profileImage: true,
+      },
+    });
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        data: {
+          message: "Profile image updated.",
+          user: updated,
+        },
+      },
+    };
+  }
+
+  async function changePassword(userId, payload) {
+    if (!userId) {
+      return { status: 401, body: { message: "Unauthorized." } };
+    }
+
+    const currentPassword = String(payload?.currentPassword || "");
+    const newPassword = String(payload?.newPassword || "");
+
+    if (!currentPassword || !newPassword) {
+      return { status: 400, body: { message: "currentPassword and newPassword are required." } };
+    }
+
+    if (newPassword.length < 8) {
+      return { status: 400, body: { message: "Password must be at least 8 characters." } };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, password: true },
+    });
+
+    if (!user) {
+      return { status: 404, body: { message: "User not found." } };
+    }
+
+    const validCurrentPassword = await bcrypt.compare(currentPassword, user.password);
+    if (!validCurrentPassword) {
+      return { status: 401, body: { message: "Current password is incorrect." } };
+    }
+
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    await prisma.$transaction([
+      prisma.user.update({ where: { id: userId }, data: { password: hashedPassword } }),
+      prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        data: { message: "Password changed successfully. Please login again." },
+      },
+    };
+  }
+
+  async function listUsers({ query, actorId, actorRole } = {}) {
+    const role = query?.role ? String(query.role).trim().toUpperCase() : undefined;
+    const status = query?.status ? String(query.status).trim().toUpperCase() : undefined;
     const search = query?.search ? String(query.search).trim() : undefined;
+    const requestedCategory = query?.category ? String(query.category).trim().toUpperCase() : undefined;
     const limit = Math.min(Number(query?.limit || 20), 100);
     const page = Math.max(Number(query?.page || 1), 1);
     const skip = (page - 1) * limit;
 
+    let category = requestedCategory;
+    const normalizedActorRole = String(actorRole || "").trim().toUpperCase();
+
+    if (normalizedActorRole === "SERVICE_MANAGER" && actorId) {
+      const actor = await prisma.user.findUnique({
+        where: { id: actorId },
+        select: { role: true, category: true },
+      });
+
+      if (String(actor?.role || "").toUpperCase() === "SERVICE_MANAGER" && actor?.category) {
+        category = String(actor.category).trim().toUpperCase();
+      }
+    }
+
     const where = {
       ...(role ? { role } : {}),
       ...(status ? { status } : {}),
+      ...(category ? { category } : {}),
       ...(search
         ? {
             OR: [
@@ -291,9 +511,12 @@ export function createUsersService({ prisma }) {
           id: true,
           username: true,
           name: true,
+          category: true,
           email: true,
           role: true,
           status: true,
+          isActive: true,
+          profileImage: true,
           campus: true,
           department: true,
           strikeCount: true,
@@ -317,6 +540,7 @@ export function createUsersService({ prisma }) {
         role: true,
         status: true,
         isActive: true,
+        profileImage: true,
         campus: true,
         department: true,
         strikeCount: true,
@@ -599,13 +823,20 @@ export function createUsersService({ prisma }) {
     const campus = String(payload?.campus || "AMU").trim() || "AMU";
     const serviceType = payload?.serviceType ? normalizeServiceType(payload.serviceType) : null;
     const complaintType = payload?.complaintType ? normalizeComplaintType(payload.complaintType) : null;
-    const plainPassword = payload?.password ? String(payload.password).trim() : "";
     if (!name || name.length < 2) {
       return { status: 400, body: { message: "name is required." } };
     }
 
-    if (!email || !plainPassword || !role) {
-      return { status: 400, body: { message: "Missing fields: email, password, and role are required." } };
+    if (!role) {
+      return { status: 400, body: { message: "role is required." } };
+    }
+
+    if (!email) {
+      return { status: 400, body: { message: "Email is required to send credentials." } };
+    }
+
+    if (role === "SERVICE_MANAGER" && !/^[A-Za-z0-9._%+-]+@amu\.edu\.et$/i.test(email)) {
+      return { status: 400, body: { message: "Service manager email must be an @amu.edu.et address." } };
     }
 
     if (!ROLE_VALUES.has(role)) {
@@ -616,9 +847,16 @@ export function createUsersService({ prisma }) {
       return { status: 400, body: { message: "Invalid status." } };
     }
 
-    const requestedUsername = payload?.username ? String(payload.username).trim().toUpperCase() : null;
-    const username = requestedUsername || generateUsername(name, email);
-    const password = await bcrypt.hash(plainPassword, 10);
+    const resolvedCategory = role === "SERVICE_MANAGER"
+      ? serviceType
+      : role === "STAFF"
+        ? serviceType || department
+        : role === "COMPLAINT_MANAGER" || role === "INVESTIGATOR"
+          ? complaintType || department
+          : payload?.category || department;
+
+    const username = buildCredentialUsername({ role, category: resolvedCategory, complaintType, email, name });
+    const plainPassword = generateSecurePassword(10);
 
     const existing = await prisma.user.findFirst({
       where: {
@@ -633,6 +871,25 @@ export function createUsersService({ prisma }) {
     if (existing) {
       return { status: 409, body: { message: "User with same username or email already exists." } };
     }
+
+    try {
+      await sendUserCredentialsEmail({
+        to: email,
+        username,
+        password: plainPassword,
+        role,
+        category: resolvedCategory,
+      });
+    } catch (error) {
+      const message = String(error?.message || "Failed to send credentials email. User not created.");
+      if (message.includes("SMTP configuration missing")) {
+        return { status: 500, body: { message: "SMTP configuration missing" } };
+      }
+
+      return { status: 502, body: { message: "Failed to send credentials email. User not created." } };
+    }
+
+    const password = await bcrypt.hash(plainPassword, 10);
 
     const created = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -659,15 +916,13 @@ export function createUsersService({ prisma }) {
         throw new Error(`PROFILE_SYNC:${profileSyncError.status}:${profileSyncError.message}`);
       }
 
-      const hydrated = await tx.user.findUnique({
+      return tx.user.findUnique({
         where: { id: user.id },
         include: {
           serviceManagerProfile: { select: { serviceType: true } },
           complaintManagerProfile: { select: { complaintType: true } },
         },
       });
-
-      return hydrated;
     }).catch((error) => {
       const marker = "PROFILE_SYNC:";
       if (String(error?.message || "").startsWith(marker)) {
@@ -689,7 +944,7 @@ export function createUsersService({ prisma }) {
     return {
       status: 201,
       body: {
-        message: "User created.",
+        message: "User created and credentials emailed.",
         user: toAdminUser(created),
       },
     };
@@ -726,9 +981,27 @@ export function createUsersService({ prisma }) {
     }
 
     const updated = await prisma.$transaction(async (tx) => {
+      // Determine target email (either updated or existing)
+      const targetEmail = payload?.email !== undefined ? String(payload.email || "").trim() || null : existing.email;
+
+      // If switching to SERVICE_MANAGER, require an email to be present
+      if (nextRole === "SERVICE_MANAGER" && !targetEmail) {
+        return { __error: true, status: 400, message: "Email is required for SERVICE_MANAGER." };
+      }
+
+      // Compute username updates: enforce username=email (lowercase) for service managers.
+      let usernameUpdate = undefined;
+      if (nextRole === "SERVICE_MANAGER") {
+        usernameUpdate = String(targetEmail).toLowerCase();
+      } else if (existing.role === "SERVICE_MANAGER" && payload?.email !== undefined && targetEmail) {
+        // If user WAS a service manager and their email changed, keep username in sync
+        usernameUpdate = String(targetEmail).toLowerCase();
+      }
+
       const user = await tx.user.update({
         where: { id: userId },
         data: {
+          ...(usernameUpdate !== undefined ? { username: usernameUpdate } : {}),
           name: payload?.name !== undefined ? String(payload.name || "").trim() || existing.name : undefined,
           email: payload?.email !== undefined ? String(payload.email || "").trim() || null : undefined,
           role: nextRole,
@@ -769,6 +1042,20 @@ export function createUsersService({ prisma }) {
 
     if (updated?.__error) {
       return { status: updated.status, body: { message: updated.message } };
+    }
+
+    if (nextStatus === "BANNED") {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isActive: false },
+      });
+      updated = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          serviceManagerProfile: { select: { serviceType: true } },
+          complaintManagerProfile: { select: { complaintType: true } },
+        },
+      });
     }
 
     if (nextStatus === "WARNED" || nextStatus === "BANNED") {
@@ -875,6 +1162,8 @@ export function createUsersService({ prisma }) {
   return {
     getMe,
     updateMe,
+    updateProfileImage,
+    changePassword,
     listUsers,
     listAdminUsers,
     createAdminUser,

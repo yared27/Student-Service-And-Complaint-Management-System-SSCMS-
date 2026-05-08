@@ -5,7 +5,7 @@ import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { Button } from "@/components/ui/button";
 const features = [
-    { icon: MessageSquareWarning, title: "File a complaint", desc: "Submit academic, dormitory, cafeteria or administrative complaints with attachments — anytime, from anywhere." },
+    { icon: MessageSquareWarning, title: "File a complaint", desc: "Submit academic, food service, discipline, women case, health case, disability case, sports, or general service complaints with attachments — anytime, from anywhere." },
     { icon: ClipboardList, title: "Request a service", desc: "Apply for ID cards, transcripts, dorm changes, clearance and more through one streamlined intake." },
     { icon: Clock, title: "Track in real-time", desc: "Watch your case move from received → in review → resolved with transparent status timelines." },
     { icon: ShieldCheck, title: "Anonymous & secure", desc: "Role-based access, encrypted submissions and optional anonymous filing protect every voice." },

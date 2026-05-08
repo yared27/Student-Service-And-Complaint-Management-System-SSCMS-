@@ -22,18 +22,6 @@ export function resolveLoginQuery(identity, identifierRaw) {
     };
   }
 
-  if (identityType === "staff") {
-    const normalized = identifier.toLowerCase();
-    if (!AMU_EMAIL_REGEX.test(normalized)) {
-      return { error: "Invalid university email format." };
-    }
-    return {
-      where: {
-        email: normalized,
-      },
-    };
-  }
-
   if (identityType === "field") {
     const normalized = normalizeUpper(identifier);
     if (!EMPLOYEE_ID_REGEX.test(normalized)) {
@@ -46,14 +34,20 @@ export function resolveLoginQuery(identity, identifierRaw) {
     };
   }
 
-  if (identityType === "investigator") {
-    const normalized = identifier.toLowerCase();
-    if (!AMU_EMAIL_REGEX.test(normalized)) {
-      return { error: "Invalid university email format." };
+  if (["staff", "investigator", "complaint_manager", "service_manager"].includes(identityType)) {
+    const normalizedEmail = identifier.toLowerCase();
+    if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
+      return {
+        where: {
+          email: normalizedEmail,
+        },
+      };
     }
+
+    const normalizedUsername = normalizeUpper(identifier);
     return {
       where: {
-        email: normalized,
+        username: normalizedUsername,
       },
     };
   }

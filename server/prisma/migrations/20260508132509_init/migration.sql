@@ -1,14 +1,26 @@
--- CreateSchema
-CREATE SCHEMA IF NOT EXISTS "public";
-
 -- CreateEnum
 CREATE TYPE "Role" AS ENUM ('STUDENT', 'SERVICE_MANAGER', 'STAFF', 'COMPLAINT_MANAGER', 'INVESTIGATOR', 'ADMIN');
 
 -- CreateEnum
-CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'INACTIVE', 'SUSPENDED');
+CREATE TYPE "UserStatus" AS ENUM ('ACTIVE', 'WARNED', 'BANNED');
+
+-- CreateEnum
+CREATE TYPE "ServiceType" AS ENUM ('DORMITORY', 'CAFETERIA', 'ICT', 'LIBRARY', 'CLASSROOM', 'LABORATORY', 'UTILITIES', 'TRANSPORT');
+
+-- CreateEnum
+CREATE TYPE "Category" AS ENUM ('ICT', 'DORMITORY', 'CAFETERIA', 'CLASSROOM', 'LIBRARY', 'LABORATORY', 'UTILITIES', 'TRANSPORT', 'CLINIC');
+
+-- CreateEnum
+CREATE TYPE "RequestType" AS ENUM ('SERVICE', 'COMPLAINT');
+
+-- CreateEnum
+CREATE TYPE "ComplaintType" AS ENUM ('ACADEMIC', 'FOOD_SERVICE', 'DISCIPLINE', 'GENERAL_SERVICE', 'WOMEN_CASE', 'HEALTH_CASE', 'DISABILITY_CASE', 'SPORTS');
 
 -- CreateEnum
 CREATE TYPE "ComplaintStatus" AS ENUM ('SUBMITTED', 'UNDER_REVIEW', 'IN_PROGRESS', 'RESOLVED', 'REJECTED');
+
+-- CreateEnum
+CREATE TYPE "GrievanceStatus" AS ENUM ('PHASE_1', 'PHASE_2', 'PHASE_3');
 
 -- CreateEnum
 CREATE TYPE "ServiceRequestStatus" AS ENUM ('SUBMITTED', 'IN_PROGRESS', 'COMPLETED', 'REJECTED');
@@ -39,6 +51,7 @@ CREATE TABLE "User" (
     "password" TEXT NOT NULL,
     "email" TEXT,
     "role" "Role" NOT NULL,
+    "category" "Category",
     "status" "UserStatus" NOT NULL DEFAULT 'ACTIVE',
     "campus" TEXT NOT NULL,
     "department" TEXT NOT NULL,
@@ -46,6 +59,7 @@ CREATE TABLE "User" (
     "profileImage" TEXT,
     "strikeCount" INTEGER NOT NULL DEFAULT 0,
     "isFlagged" BOOLEAN NOT NULL DEFAULT false,
+    "isActive" BOOLEAN NOT NULL DEFAULT true,
     "lastSuspendedAt" TIMESTAMP(3),
     "suspensionEndsAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -55,14 +69,64 @@ CREATE TABLE "User" (
 );
 
 -- CreateTable
+CREATE TABLE "ServiceManager" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "serviceType" "ServiceType" NOT NULL,
+    "category" "Category",
+
+    CONSTRAINT "ServiceManager_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "ComplaintManager" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "complaintType" "ComplaintType" NOT NULL,
+    "category" "Category",
+
+    CONSTRAINT "ComplaintManager_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "RefreshToken" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "revokedAt" TIMESTAMP(3),
+    "ipAddress" TEXT,
+    "userAgent" TEXT,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "RefreshToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "PasswordResetToken" (
+    "id" TEXT NOT NULL,
+    "userId" TEXT NOT NULL,
+    "tokenHash" TEXT NOT NULL,
+    "expiresAt" TIMESTAMP(3) NOT NULL,
+    "usedAt" TIMESTAMP(3),
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "PasswordResetToken_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "Complaint" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
     "status" "ComplaintStatus" NOT NULL DEFAULT 'SUBMITTED',
+    "grievanceStatus" "GrievanceStatus" NOT NULL DEFAULT 'PHASE_1',
     "priority" "Priority" NOT NULL DEFAULT 'MEDIUM',
+    "complaintType" "ComplaintType" NOT NULL DEFAULT 'GENERAL_SERVICE',
+    "category" "Category",
     "createdById" TEXT NOT NULL,
     "assignedToId" TEXT,
+    "assignedComplaintManagerId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "resolvedAt" TIMESTAMP(3),
@@ -71,19 +135,54 @@ CREATE TABLE "Complaint" (
 );
 
 -- CreateTable
+CREATE TABLE "ComplaintAttachment" (
+    "id" TEXT NOT NULL,
+    "complaintId" TEXT NOT NULL,
+    "url" TEXT NOT NULL,
+    "publicId" TEXT,
+    "width" INTEGER,
+    "height" INTEGER,
+    "format" TEXT,
+    "bytes" INTEGER,
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+
+    CONSTRAINT "ComplaintAttachment_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
 CREATE TABLE "ServiceRequest" (
     "id" TEXT NOT NULL,
     "title" TEXT NOT NULL,
     "description" TEXT NOT NULL,
+    "type" "RequestType",
+    "category" "Category",
     "status" "ServiceRequestStatus" NOT NULL DEFAULT 'SUBMITTED',
     "priority" "Priority" NOT NULL DEFAULT 'MEDIUM',
+    "isDuplicate" BOOLEAN NOT NULL DEFAULT false,
+    "duplicateScore" DOUBLE PRECISION NOT NULL DEFAULT 0,
+    "serviceType" "ServiceType" NOT NULL DEFAULT 'UTILITIES',
     "createdById" TEXT NOT NULL,
     "assignedToId" TEXT,
+    "assignedServiceManagerId" TEXT,
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "updatedAt" TIMESTAMP(3) NOT NULL,
     "resolvedAt" TIMESTAMP(3),
 
     CONSTRAINT "ServiceRequest_pkey" PRIMARY KEY ("id")
+);
+
+-- CreateTable
+CREATE TABLE "MaterialRequest" (
+    "id" TEXT NOT NULL,
+    "serviceRequestId" TEXT NOT NULL,
+    "requesterId" TEXT NOT NULL,
+    "managerId" TEXT NOT NULL,
+    "note" TEXT NOT NULL,
+    "status" TEXT NOT NULL DEFAULT 'PENDING',
+    "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    "updatedAt" TIMESTAMP(3) NOT NULL,
+
+    CONSTRAINT "MaterialRequest_pkey" PRIMARY KEY ("id")
 );
 
 -- CreateTable
@@ -112,6 +211,9 @@ CREATE TABLE "Notification" (
     "type" "NotificationType" NOT NULL DEFAULT 'SYSTEM',
     "title" TEXT NOT NULL,
     "message" TEXT NOT NULL,
+    "route" TEXT,
+    "entityType" TEXT,
+    "entityId" TEXT,
     "isRead" BOOLEAN NOT NULL DEFAULT false,
     "readAt" TIMESTAMP(3),
     "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -146,7 +248,46 @@ CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE INDEX "User_role_status_idx" ON "User"("role", "status");
 
 -- CreateIndex
+CREATE INDEX "User_category_role_status_idx" ON "User"("category", "role", "status");
+
+-- CreateIndex
 CREATE INDEX "User_campus_department_idx" ON "User"("campus", "department");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ServiceManager_userId_key" ON "ServiceManager"("userId");
+
+-- CreateIndex
+CREATE INDEX "ServiceManager_serviceType_idx" ON "ServiceManager"("serviceType");
+
+-- CreateIndex
+CREATE INDEX "ServiceManager_category_idx" ON "ServiceManager"("category");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ServiceManager_serviceType_key" ON "ServiceManager"("serviceType");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ServiceManager_category_key" ON "ServiceManager"("category");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ComplaintManager_userId_key" ON "ComplaintManager"("userId");
+
+-- CreateIndex
+CREATE INDEX "ComplaintManager_category_idx" ON "ComplaintManager"("category");
+
+-- CreateIndex
+CREATE INDEX "ComplaintManager_complaintType_idx" ON "ComplaintManager"("complaintType");
+
+-- CreateIndex
+CREATE UNIQUE INDEX "ComplaintManager_complaintType_key" ON "ComplaintManager"("complaintType");
+
+-- CreateIndex
+CREATE INDEX "RefreshToken_userId_revokedAt_expiresAt_idx" ON "RefreshToken"("userId", "revokedAt", "expiresAt");
+
+-- CreateIndex
+CREATE INDEX "PasswordResetToken_userId_usedAt_expiresAt_idx" ON "PasswordResetToken"("userId", "usedAt", "expiresAt");
+
+-- CreateIndex
+CREATE INDEX "PasswordResetToken_tokenHash_idx" ON "PasswordResetToken"("tokenHash");
 
 -- CreateIndex
 CREATE INDEX "Complaint_createdById_status_createdAt_idx" ON "Complaint"("createdById", "status", "createdAt");
@@ -155,10 +296,40 @@ CREATE INDEX "Complaint_createdById_status_createdAt_idx" ON "Complaint"("create
 CREATE INDEX "Complaint_assignedToId_status_idx" ON "Complaint"("assignedToId", "status");
 
 -- CreateIndex
+CREATE INDEX "Complaint_complaintType_status_createdAt_idx" ON "Complaint"("complaintType", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "Complaint_assignedComplaintManagerId_status_idx" ON "Complaint"("assignedComplaintManagerId", "status");
+
+-- CreateIndex
+CREATE INDEX "Complaint_category_status_createdAt_idx" ON "Complaint"("category", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "ComplaintAttachment_complaintId_createdAt_idx" ON "ComplaintAttachment"("complaintId", "createdAt");
+
+-- CreateIndex
 CREATE INDEX "ServiceRequest_createdById_status_createdAt_idx" ON "ServiceRequest"("createdById", "status", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "ServiceRequest_assignedToId_status_idx" ON "ServiceRequest"("assignedToId", "status");
+
+-- CreateIndex
+CREATE INDEX "ServiceRequest_serviceType_status_createdAt_idx" ON "ServiceRequest"("serviceType", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "ServiceRequest_assignedServiceManagerId_status_idx" ON "ServiceRequest"("assignedServiceManagerId", "status");
+
+-- CreateIndex
+CREATE INDEX "ServiceRequest_category_status_createdAt_idx" ON "ServiceRequest"("category", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "MaterialRequest_serviceRequestId_status_createdAt_idx" ON "MaterialRequest"("serviceRequestId", "status", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "MaterialRequest_requesterId_createdAt_idx" ON "MaterialRequest"("requesterId", "createdAt");
+
+-- CreateIndex
+CREATE INDEX "MaterialRequest_managerId_status_createdAt_idx" ON "MaterialRequest"("managerId", "status", "createdAt");
 
 -- CreateIndex
 CREATE INDEX "MisuseReport_reportedUserId_status_createdAt_idx" ON "MisuseReport"("reportedUserId", "status", "createdAt");
@@ -185,16 +356,46 @@ CREATE INDEX "ActivityLog_targetUserId_createdAt_idx" ON "ActivityLog"("targetUs
 CREATE INDEX "ActivityLog_entityType_entityId_createdAt_idx" ON "ActivityLog"("entityType", "entityId", "createdAt");
 
 -- AddForeignKey
+ALTER TABLE "ServiceManager" ADD CONSTRAINT "ServiceManager_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ComplaintManager" ADD CONSTRAINT "ComplaintManager_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "RefreshToken" ADD CONSTRAINT "RefreshToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "PasswordResetToken" ADD CONSTRAINT "PasswordResetToken_userId_fkey" FOREIGN KEY ("userId") REFERENCES "User"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "Complaint" ADD CONSTRAINT "Complaint_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "Complaint" ADD CONSTRAINT "Complaint_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
 
 -- AddForeignKey
+ALTER TABLE "Complaint" ADD CONSTRAINT "Complaint_assignedComplaintManagerId_fkey" FOREIGN KEY ("assignedComplaintManagerId") REFERENCES "ComplaintManager"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ComplaintAttachment" ADD CONSTRAINT "ComplaintAttachment_complaintId_fkey" FOREIGN KEY ("complaintId") REFERENCES "Complaint"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
 ALTER TABLE "ServiceRequest" ADD CONSTRAINT "ServiceRequest_createdById_fkey" FOREIGN KEY ("createdById") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "ServiceRequest" ADD CONSTRAINT "ServiceRequest_assignedToId_fkey" FOREIGN KEY ("assignedToId") REFERENCES "User"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "ServiceRequest" ADD CONSTRAINT "ServiceRequest_assignedServiceManagerId_fkey" FOREIGN KEY ("assignedServiceManagerId") REFERENCES "ServiceManager"("id") ON DELETE SET NULL ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MaterialRequest" ADD CONSTRAINT "MaterialRequest_serviceRequestId_fkey" FOREIGN KEY ("serviceRequestId") REFERENCES "ServiceRequest"("id") ON DELETE CASCADE ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MaterialRequest" ADD CONSTRAINT "MaterialRequest_requesterId_fkey" FOREIGN KEY ("requesterId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
+
+-- AddForeignKey
+ALTER TABLE "MaterialRequest" ADD CONSTRAINT "MaterialRequest_managerId_fkey" FOREIGN KEY ("managerId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
 
 -- AddForeignKey
 ALTER TABLE "MisuseReport" ADD CONSTRAINT "MisuseReport_reporterId_fkey" FOREIGN KEY ("reporterId") REFERENCES "User"("id") ON DELETE RESTRICT ON UPDATE CASCADE;
@@ -225,4 +426,3 @@ ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_complaintId_fkey" FOREIGN 
 
 -- AddForeignKey
 ALTER TABLE "ActivityLog" ADD CONSTRAINT "ActivityLog_serviceRequestId_fkey" FOREIGN KEY ("serviceRequestId") REFERENCES "ServiceRequest"("id") ON DELETE SET NULL ON UPDATE CASCADE;
-

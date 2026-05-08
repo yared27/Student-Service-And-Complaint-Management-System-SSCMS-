@@ -128,6 +128,8 @@ export function toPublicUser(user) {
     campus: user.campus,
     department: user.department,
     status: user.status,
+    profileImage: user.profileImage || null,
+    isActive: user.isActive,
   };
 }
 
@@ -209,6 +211,8 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
       email: true,
       role: true,
       status: true,
+      isActive: true,
+      profileImage: true,
       campus: true,
       department: true,
     },
@@ -224,11 +228,11 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
     return { status: 401, body: { message: "Invalid credentials." } };
   }
 
-  if (String(user.status || "").toUpperCase() === "BANNED") {
+  if (String(user.status || "").toUpperCase() === "BANNED" || user.isActive === false) {
     return {
       status: 403,
       body: {
-        message: "Your account has been banned.",
+        message: "Your account is deactivated or banned.",
       },
     };
   }
@@ -294,6 +298,8 @@ export async function refreshSession(prisma, payload, jwtSecret, refreshTokenSec
       email: true,
       role: true,
       status: true,
+      isActive: true,
+      profileImage: true,
       campus: true,
       department: true,
     },
@@ -303,8 +309,8 @@ export async function refreshSession(prisma, payload, jwtSecret, refreshTokenSec
     return { status: 401, body: { message: "User is not active." } };
   }
 
-  if (String(user.status || "").toUpperCase() === "BANNED") {
-    return { status: 403, body: { message: "Your account has been banned." } };
+  if (String(user.status || "").toUpperCase() === "BANNED" || user.isActive === false) {
+    return { status: 403, body: { message: "Your account is deactivated or banned." } };
   }
 
   await revokeRefreshTokenById(prisma, decoded.tid);
