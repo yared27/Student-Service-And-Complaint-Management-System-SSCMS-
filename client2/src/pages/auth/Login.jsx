@@ -22,35 +22,9 @@ const ROLE_REDIRECT = {
   admin: "/admin/dashboard",
 };
 
-const STUDENT_ID_REGEX = /^(NSR|SSR)\/\d{1,6}\/\d{2,4}$/i;
-const EMPLOYEE_ID_REGEX = /^[A-Z]{2,5}-\d{2,5}$/i;
-const AMU_EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@amu\.edu\.et$/i;
-
 const API_BASE_URL =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_API_BASE_URL) ||
   "http://localhost:5000/api";
-
-function getIdentityCandidates(identifierRaw) {
-  const identifier = String(identifierRaw || "").trim();
-
-  if (identifier.toUpperCase().startsWith("ADMIN") || identifier.toLowerCase() === "admin@amu.edu.et") {
-    return ["admin"];
-  }
-
-  if (STUDENT_ID_REGEX.test(identifier)) {
-    return ["student"];
-  }
-
-  if (EMPLOYEE_ID_REGEX.test(identifier.toUpperCase())) {
-    return ["field"];
-  }
-
-  if (AMU_EMAIL_REGEX.test(identifier)) {
-    return ["service_manager", "staff", "investigator", "complaint_manager"];
-  }
-
-  return ["student", "field", "service_manager", "complaint_manager", "staff", "investigator"];
-}
 
 function getErrorMessage(error) {
   return (
@@ -92,36 +66,14 @@ if (storedAuth) {
   const onSubmit = handleSubmit(async (values) => {
     const identifier = String(values.username || "").trim();
     const password = String(values.password || "");
-    const candidates = getIdentityCandidates(identifier);
-
-    let loginResponse = null;
-    let lastError = null;
 
     try {
-      for (const identity of candidates) {
-        try {
-          const response = await axios.post(`${API_BASE_URL}/auth/login`, {
-            identity,
-            identifier,
-            password,
-            rememberMe: true,
-          });
-
-          loginResponse = response;
-          break;
-        } catch (error) {
-          lastError = error;
-          const status = error?.response?.status;
-          // Keep trying other identity candidates on known auth/validation failures.
-          if (status && ![400, 401, 404].includes(status)) {
-            throw error;
-          }
-        }
-      }
-
-      if (!loginResponse) {
-        throw lastError || new Error("Login failed.");
-      }
+      const loginResponse = await axios.post(`${API_BASE_URL}/auth/login`, {
+        identity: "auto",
+        identifier,
+        password,
+        rememberMe: true,
+      });
 
       const user = loginResponse?.data?.user;
       const token = loginResponse?.data?.token;

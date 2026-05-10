@@ -2,7 +2,6 @@ import "dotenv/config";
 import express from "express";
 import cors from "cors";
 import { PrismaClient } from "@prisma/client";
-import rateLimit from "express-rate-limit";
 import swaggerUi from "swagger-ui-express";
 import { createAuthRouter } from "./src/routes/auth.routes.js";
 import { createReportRouter } from "./src/routes/report.routes.js";
@@ -33,14 +32,6 @@ if (!REFRESH_TOKEN_SECRET || REFRESH_TOKEN_SECRET.length < 32) {
 
 const auth = createAuthMiddleware({ jwtSecret: JWT_SECRET, prisma });
 
-const loginRateLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000,
-    max: 10,
-    standardHeaders: true,
-    legacyHeaders: false,
-    message: { message: "Too many login attempts. Please try again later." },
-});
-
 app.use(
     cors({
         origin: true,
@@ -67,8 +58,6 @@ app.get("/api/health", async (_req, res) => {
         res.status(500).json({ status: "error" });
     }
 });
-
-app.use("/api/auth/login", loginRateLimiter);
 
 app.use(
     "/api/auth",
