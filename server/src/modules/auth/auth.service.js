@@ -1,12 +1,15 @@
 import bcrypt from "bcrypt";
 import crypto from "crypto";
 import jwt from "jsonwebtoken";
-import { STUDENT_ID_REGEX, normalizeUpper, resolveLoginQuery } from "./auth.validation.js";
+import { AMU_EMAIL_REGEX, EMPLOYEE_ID_REGEX, STUDENT_ID_REGEX, normalizeUpper } from "./auth.validation.js";
 
 const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "12h";
 const ACCESS_TOKEN_TTL_REMEMBER_ME = process.env.ACCESS_TOKEN_TTL_REMEMBER_ME || "7d";
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL || "30d";
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 15);
+const LOGIN_ATTEMPT_LIMIT = 4;
+const LOGIN_ATTEMPT_WINDOW_MS = Number(process.env.LOGIN_ATTEMPT_WINDOW_MS || 15 * 60 * 1000);
+const failedLoginAttempts = new Map();
 
 function getUserDelegate(prisma) {
   const delegate = prisma?.user ?? prisma?.$parent?.user ?? prisma?.User ?? prisma?.users;
@@ -118,6 +121,110 @@ function parseRefreshToken(rawToken, refreshTokenSecret) {
   }
 }
 
+function getLoginAttemptKey(identity, identifier, ipAddress) {
+  return [String(identity || "auto").trim().toLowerCase(), String(identifier || "").trim().toLowerCase(), String(ipAddress || "unknown")].join("|");
+}
+
+function getFailedLoginRecord(key) {
+  const record = failedLoginAttempts.get(key);
+  if (!record) {
+    return null;
+  }
+
+  if (Date.now() - record.firstFailedAt > LOGIN_ATTEMPT_WINDOW_MS) {
+    failedLoginAttempts.delete(key);
+    return null;
+  }
+
+  return record;
+}
+
+function registerFailedLoginAttempt(key) {
+  const existing = getFailedLoginRecord(key);
+  const nextCount = (existing?.count || 0) + 1;
+
+  failedLoginAttempts.set(key, {
+    count: nextCount,
+    firstFailedAt: existing?.firstFailedAt || Date.now(),
+  });
+
+  return nextCount;
+}
+
+function clearFailedLoginAttempts(key) {
+  failedLoginAttempts.delete(key);
+}
+
+function buildLoginCandidateQueries(identity, identifierRaw) {
+  const identifier = String(identifierRaw || "").trim();
+  const normalizedIdentity = String(identity || "").trim().toLowerCase();
+
+  if (!identifier) {
+    return { error: "Identity, identifier, and password are required." };
+  }
+
+  if (normalizedIdentity === "student") {
+    const normalized = identifier.toUpperCase();
+    if (!STUDENT_ID_REGEX.test(normalized)) {
+      return { error: "Invalid student ID format." };
+    }
+
+    return { candidates: [{ where: { username: normalized } }] };
+  }
+
+  if (normalizedIdentity === "field") {
+    const normalized = identifier.toUpperCase();
+    if (!EMPLOYEE_ID_REGEX.test(normalized)) {
+      return { error: "Invalid employee ID format." };
+    }
+
+    return { candidates: [{ where: { username: normalized } }] };
+  }
+
+  if (["staff", "investigator", "complaint_manager", "service_manager"].includes(normalizedIdentity)) {
+    const normalizedEmail = identifier.toLowerCase();
+    if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
+      return { candidates: [{ where: { email: normalizedEmail } }, { where: { username: identifier.toUpperCase() } }] };
+    }
+
+    return { candidates: [{ where: { username: identifier.toUpperCase() } }] };
+  }
+
+  if (normalizedIdentity === "admin") {
+    const normalizedEmail = identifier.toLowerCase();
+    if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
+      return { candidates: [{ where: { email: normalizedEmail } }, { where: { username: identifier.toUpperCase() } }] };
+    }
+
+    return { candidates: [{ where: { username: identifier.toUpperCase() } }] };
+  }
+
+  const normalized = identifier.toUpperCase();
+  const normalizedEmail = identifier.toLowerCase();
+
+  const candidates = [];
+  if (STUDENT_ID_REGEX.test(normalized)) {
+    candidates.push({ where: { username: normalized } });
+  }
+  if (EMPLOYEE_ID_REGEX.test(normalized)) {
+    candidates.push({ where: { username: normalized } });
+  }
+  if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
+    candidates.push(
+      { where: { email: normalizedEmail } },
+      { where: { username: normalized } },
+    );
+  }
+  if (!candidates.length) {
+    candidates.push(
+      { where: { username: normalized } },
+      { where: { email: normalizedEmail } },
+    );
+  }
+
+  return { candidates };
+}
+
 export function toPublicUser(user) {
   return {
     id: user.id,
@@ -186,47 +293,85 @@ export async function registerStudent(prisma, payload) {
 }
 
 export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqMeta) {
-  const { identity, identifier, password, rememberMe } = payload || {};
+  const { identity = "auto", identifier, password, rememberMe } = payload || {};
   const userDelegate = getUserDelegate(prisma);
 
-  if (!identity || !identifier || !password) {
+  if (!identifier || !password) {
     return {
       status: 400,
-      body: { message: "Identity, identifier, and password are required." },
+      body: { message: "Identifier and password are required." },
     };
   }
 
-  const resolution = resolveLoginQuery(identity, identifier);
+  const loginKey = getLoginAttemptKey(identity, identifier, reqMeta?.ipAddress);
+  const record = getFailedLoginRecord(loginKey);
+
+  if (record && record.count >= LOGIN_ATTEMPT_LIMIT) {
+    return {
+      status: 429,
+      body: { message: "Too many login attempts. Please try again later." },
+    };
+  }
+
+  const resolution = buildLoginCandidateQueries(identity, identifier);
   if (resolution.error) {
     return { status: 400, body: { message: resolution.error } };
   }
 
-  const user = await userDelegate.findFirst({
-    where: resolution.where,
-    select: {
-      id: true,
-      username: true,
-      name: true,
-      password: true,
-      email: true,
-      role: true,
-      status: true,
-      isActive: true,
-      profileImage: true,
-      campus: true,
-      department: true,
-    },
-  });
+  const userSelect = {
+    id: true,
+    username: true,
+    name: true,
+    password: true,
+    email: true,
+    role: true,
+    status: true,
+    isActive: true,
+    profileImage: true,
+    campus: true,
+    department: true,
+  };
+
+  let user = null;
+  for (const candidate of resolution.candidates || []) {
+    user = await userDelegate.findFirst({
+      where: candidate.where,
+      select: userSelect,
+    });
+
+    if (user) {
+      break;
+    }
+  }
+
   console.log("Login user lookup:", user ? { id: user.id, username: user.username, email: user.email, role: user.role } : null);
   console.log("Login user role:", user?.role || null);
   if (!user) {
+    const attempts = registerFailedLoginAttempt(loginKey);
+    if (attempts >= LOGIN_ATTEMPT_LIMIT) {
+      return {
+        status: 429,
+        body: { message: "Too many login attempts. Please try again later." },
+      };
+    }
+
     return { status: 401, body: { message: "Invalid credentials." } };
   }
 
   const passwordMatches = await bcrypt.compare(String(password), user.password);
   if (!passwordMatches) {
+    const attempts = registerFailedLoginAttempt(loginKey);
+    if (attempts >= LOGIN_ATTEMPT_LIMIT) {
+      return {
+        status: 429,
+        body: { message: "Too many login attempts. Please try again later." },
+      };
+    }
+
     return { status: 401, body: { message: "Invalid credentials." } };
   }
+
+  clearFailedLoginAttempts(loginKey);
 
   if (String(user.status || "").toUpperCase() === "BANNED" || user.isActive === false) {
     return {
