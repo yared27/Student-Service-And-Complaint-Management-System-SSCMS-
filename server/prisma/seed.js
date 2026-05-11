@@ -111,7 +111,7 @@ async function seedStudents(hashedPassword) {
     for (const bureau of COMPLAINT_BUREAUS) {
       const investigatorUsername = `${bureau.complaintType}_INVESTIGATOR_001`;
 
-      await upsertUser({
+      const investigator = await upsertUser({
         username: investigatorUsername,
         name: bureau.name,
         email: bureau.email,
@@ -120,6 +120,8 @@ async function seedStudents(hashedPassword) {
         department: `${bureau.complaintType.replaceAll("_", " ")} Investigations`,
         password: hashedPassword,
       });
+
+      await upsertComplaintManagerProfile({ userId: investigator.id, complaintType: bureau.complaintType });
     }
 
     console.log(`Seeded 8 investigators for complaint bureaus.`);
@@ -150,6 +152,7 @@ async function seedStudents(hashedPassword) {
         category: serviceType.id,
         password: hashedPassword,
       });
+      await upsertServiceManagerProfile({ userId: manager.id, serviceType: serviceType.id });
       managers.push({ ...manager, serviceType: serviceType.id });
     }
 
@@ -170,9 +173,14 @@ async function seedStudents(hashedPassword) {
     ];
 
     for (const category of serviceCategories) {
+      const manager = await prisma.serviceManager.findFirst({
+        where: { serviceType: category },
+        select: { id: true },
+      });
+
       for (let i = 1; i <= 2; i++) {
         const username = `STAFF-${category}-00${i}`;
-        await upsertUser({
+        const staff = await upsertUser({
           username,
           name: `${category} Staff ${i}`,
           role: "STAFF",
@@ -181,6 +189,13 @@ async function seedStudents(hashedPassword) {
           category,
           password: hashedPassword,
         });
+
+        if (manager) {
+          await prisma.user.update({
+            where: { id: staff.id },
+            data: { managedByServiceManagerId: manager.id },
+          });
+        }
       }
     }
 
@@ -313,6 +328,12 @@ async function main() {
   const complaintManagerProfile = await upsertComplaintManagerProfile({
     userId: byUsername["CM-001"].id,
     complaintType: "ACADEMIC",
+  });
+
+  // Link INV-001 investigator to the complaint manager
+  await prisma.user.update({
+    where: { id: byUsername["INV-001"].id },
+    data: { managedByComplaintManagerId: complaintManagerProfile.id },
   });
 
   const complaintA = await prisma.complaint.create({

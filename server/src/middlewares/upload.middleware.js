@@ -49,3 +49,26 @@ export function handleUploadImages(req, res, next) {
     res.status(400).json({ message: error.message || "Invalid upload payload." });
   });
 }
+const importFileMimeTypes = new Set([
+  "text/csv",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  "application/vnd.ms-excel",
+]);
+
+function importFileFilter(_req, file, cb) {
+  const fileName = String(file.originalname || "");
+  const extension = fileName.split(".").pop().toLowerCase();
+  const allowedExtensions = new Set(["csv", "xlsx", "xls"]);
+
+  if (!allowedExtensions.has(extension) && !importFileMimeTypes.has(file.mimetype)) {
+    cb(new Error("Unsupported file type. Please upload a CSV or XLSX file."));
+    return;
+  }
+
+  cb(null, true);
+}
+
+export const uploadFile = multer({
+  storage,
+  fileFilter: importFileFilter,
+}).single("file");

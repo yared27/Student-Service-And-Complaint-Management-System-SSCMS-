@@ -27,6 +27,37 @@ export async function listUsers(_token, query = {}) {
   return apiRequest(`/users${buildQuery(query)}`);
 }
 
+export async function createUser(_token, payload) {
+  return apiRequest("/users", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function updateUser(_token, userId, payload) {
+  return apiRequest(`/users/${userId}`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
+export async function uploadStudentImport(_token, file) {
+  const form = new FormData();
+  form.append("file", file);
+  return apiRequest("/admin/imports/upload", {
+    method: "POST",
+    body: form,
+  });
+}
+
+export async function listImportHistory(_token, query = {}) {
+  return apiRequest(`/admin/imports/history${buildQuery(query)}`);
+}
+
+export async function getImportBatch(_token, batchId) {
+  return apiRequest(`/admin/imports/history/${batchId}`);
+}
+
 export async function listActivityLogs(_token, query = {}) {
   return apiRequest(`/activity-logs${buildQuery(query)}`);
 }

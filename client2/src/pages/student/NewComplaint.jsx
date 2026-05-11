@@ -20,9 +20,7 @@ const NewComplaint = () => {
   const navigate = useNavigate();
 
   // State Management
-  const [subject, setSubject] = useState("");
   const [complaintType, setComplaintType] = useState("");
-  const [department, setDepartment] = useState("");
   const [description, setDescription] = useState("");
   const [confidential, setConfidential] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -30,17 +28,13 @@ const NewComplaint = () => {
   const [files, setFiles] = useState([]);
   const [submitError, setSubmitError] = useState("");
   const [submittedId, setSubmittedId] = useState("");
+  const [aiSuggestion, setAiSuggestion] = useState(null);
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiMessage, setAiMessage] = useState("");
 
   const fileInputRef = useRef(null);
 
-  const offices = [
-    "Registrar Office",
-    "Finance Department",
-    "Academic Affairs",
-    "Student Services",
-    "Department Head",
-    "General Services",
-  ];
+  // Office/department selection removed per UX simplification
 
   const complaintTypes = [
     { value: "ACADEMIC", label: "Academic" },
@@ -90,11 +84,20 @@ const NewComplaint = () => {
           .filter((item) => item.url);
       }
 
+      // Derive a short title from the description
+      const derivedTitle = (description || "").split("\n")[0].slice(0, 100) || "Student Grievance";
+
+      // If AI advisory reported a high duplicate risk, block and surface error
+      if (aiSuggestion && aiSuggestion.duplicate_score > 0.7) {
+        setIsSubmitting(false);
+        setSubmitError("A similar complaint already exists. Please review your submission.");
+        return;
+      }
+
       const complaintPayload = {
-        title: subject,
+        title: derivedTitle,
         complaintType,
-        description: `[Office Involved] ${department}\n[Confidential] ${confidential ? "Yes" : "No"}\n\n${description}`,
-        priority: "MEDIUM",
+        description: `[Confidential] ${confidential ? "Yes" : "No"}\n\n${description}`,
         attachmentUrls: attachments,
       };
 
@@ -108,9 +111,46 @@ const NewComplaint = () => {
       setShowSuccess(true);
     } catch (error) {
       setIsSubmitting(false);
-      setSubmitError(error.message || "Failed to submit complaint.");
+      // Prefer server-provided message, include status for debugging
+      const serverMsg = error?.payload?.message || error.message || "Failed to submit complaint.";
+      const status = error?.status ? ` (${error.status})` : "";
+      const details = error?.payload && typeof error.payload === "object" ? JSON.stringify(error.payload) : null;
+      setSubmitError(`${serverMsg}${status}${details ? ` — ${details}` : ""}`);
+      console.error("Complaint submission failed:", error);
     }
   };
+
+  // AI advisory for priority / duplicate detection
+  React.useEffect(() => {
+    const text = String(description || "").trim();
+    if (text.length < 50) {
+      setAiSuggestion(null);
+      setAiMessage("");
+      setAiLoading(false);
+      return undefined;
+    }
+
+    const id = window.setTimeout(async () => {
+      setAiLoading(true);
+      try {
+        const res = await apiRequest("/service-requests/ai-suggest", {
+          method: "POST",
+          body: JSON.stringify({ text }),
+        });
+
+        const suggestion = res?.data || null;
+        setAiSuggestion(suggestion);
+        setAiMessage(res?.message || "");
+      } catch (err) {
+        setAiMessage(err?.message || "AI suggestion temporarily unavailable.");
+        setAiSuggestion(null);
+      } finally {
+        setAiLoading(false);
+      }
+    }, 650);
+
+    return () => window.clearTimeout(id);
+  }, [description]);
 
   // SUCCESS SCREEN
   if (showSuccess) {
@@ -249,22 +289,8 @@ const NewComplaint = () => {
             className="bg-white rounded-[2.5rem] p-8 lg:p-12 shadow-sm border border-slate-100 min-h-150 flex flex-col justify-between"
           >
             <div className="space-y-8">
-              {/* ROW 1: Subject & Department */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 focus-within:border-[#002B5B]/30 focus-within:bg-white transition-all">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-3 block tracking-widest">
-                    Complaint Subject
-                  </label>
-                  <input
-                    type="text"
-                    value={subject}
-                    onChange={(e) => setSubject(e.target.value)}
-                    placeholder="e.g., Tuition Overcharge"
-                    className="w-full bg-transparent text-sm outline-none font-bold text-[#002B5B] placeholder:text-slate-300 placeholder:font-medium"
-                    required
-                  />
-                </div>
-
+              {/* ROW 1: Complaint Type */}
+              <div className="grid grid-cols-1 gap-6">
                 <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 focus-within:border-[#002B5B]/30 focus-within:bg-white transition-all relative">
                   <label className="text-[10px] font-black text-slate-400 uppercase mb-3 block tracking-widest">
                     Complaint Type
@@ -281,31 +307,6 @@ const NewComplaint = () => {
                     {complaintTypes.map((type) => (
                       <option key={type.value} value={type.value}>
                         {type.label}
-                      </option>
-                    ))}
-                  </select>
-                  <ChevronDown
-                    size={18}
-                    className="absolute right-6 top-1/2 translate-y-1 text-[#002B5B] pointer-events-none"
-                  />
-                </div>
-
-                <div className="bg-slate-50 p-6 rounded-3xl border border-slate-100 focus-within:border-[#002B5B]/30 focus-within:bg-white transition-all relative">
-                  <label className="text-[10px] font-black text-slate-400 uppercase mb-3 block tracking-widest">
-                    Office Involved
-                  </label>
-                  <select
-                    value={department}
-                    onChange={(e) => setDepartment(e.target.value)}
-                    className="w-full bg-transparent text-sm outline-none font-bold text-[#002B5B] appearance-none pr-8 cursor-pointer"
-                    required
-                  >
-                    <option value="" disabled className="font-medium">
-                      Select department...
-                    </option>
-                    {offices.map((office) => (
-                      <option key={office} value={office}>
-                        {office}
                       </option>
                     ))}
                   </select>
@@ -381,6 +382,81 @@ const NewComplaint = () => {
                   </div>
                 )}
               </div>
+
+              {/* AI ADVISORY BOX */}
+              {description.length >= 50 && (
+                <div
+                  className={`p-6 rounded-3xl border-2 transition-all ${
+                    aiLoading
+                      ? "border-blue-200 bg-blue-50/50"
+                      : aiSuggestion && aiSuggestion.duplicate_score > 0.7
+                        ? "border-red-200 bg-red-50/50"
+                        : aiSuggestion
+                          ? "border-emerald-200 bg-emerald-50/50"
+                          : "border-slate-100 bg-slate-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between gap-4 mb-4">
+                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                      AI Analysis
+                    </h4>
+                    {aiLoading && (
+                      <div className="w-4 h-4 rounded-full border-2 border-blue-300 border-r-blue-500 animate-spin" />
+                    )}
+                  </div>
+
+                  {aiSuggestion && !aiLoading ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200">
+                          <span className="text-[10px] font-bold text-slate-600">Priority:</span>
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              aiSuggestion.priority === "URGENT"
+                                ? "bg-red-100 text-red-700"
+                                : aiSuggestion.priority === "HIGH"
+                                  ? "bg-orange-100 text-orange-700"
+                                  : aiSuggestion.priority === "MEDIUM"
+                                    ? "bg-blue-100 text-blue-700"
+                                    : "bg-green-100 text-green-700"
+                            }`}
+                          >
+                            {aiSuggestion.priority || "MEDIUM"}
+                          </span>
+                        </div>
+
+                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200">
+                          <span className="text-[10px] font-bold text-slate-600">Similarity:</span>
+                          <span
+                            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                              aiSuggestion.duplicate_score > 0.7
+                                ? "bg-red-100 text-red-700"
+                                : aiSuggestion.duplicate_score >= 0.4
+                                  ? "bg-amber-100 text-amber-700"
+                                  : "bg-emerald-100 text-emerald-700"
+                            }`}
+                          >
+                            {aiSuggestion.duplicate_label || "LOW"}
+                          </span>
+                        </div>
+                      </div>
+
+                      {aiSuggestion.duplicate_score > 0.7 && (
+                        <div className="flex items-start gap-2 p-3 bg-red-100 border border-red-200 rounded-2xl">
+                          <AlertCircle size={14} className="text-red-600 mt-0.5 shrink-0" />
+                          <p className="text-[11px] font-bold text-red-700">
+                            A similar complaint already exists. Please review before submitting.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+                  ) : aiMessage && !aiLoading ? (
+                    <p className="text-[11px] text-slate-600 font-medium">{aiMessage}</p>
+                  ) : (
+                    <p className="text-[11px] text-slate-500 font-medium">Analyzing your complaint...</p>
+                  )}
+                </div>
+              )}
 
               {/* ROW 3: Confidentiality */}
               <div

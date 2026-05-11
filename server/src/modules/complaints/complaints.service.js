@@ -54,6 +54,12 @@ function normalizeComplaintType(value) {
   return allowed.has(normalized) ? normalized : null;
 }
 
+function normalizePriority(value) {
+  const normalized = String(value || "").trim().toUpperCase();
+  const allowed = new Set(["LOW", "MEDIUM", "HIGH", "URGENT"]);
+  return allowed.has(normalized) ? normalized : null;
+}
+
 function complaintTypeToCategory(complaintType) {
   const mapping = {
     ACADEMIC: "CLASSROOM",
@@ -233,8 +239,8 @@ export function createComplaintsService({ prisma }) {
 
       if (fallbackUser) {
         manager = await prisma.complaintManager.upsert({
-          where: { userId: fallbackUser.id },
-          update: { category, complaintType },
+          where: { complaintType },
+          update: { userId: fallbackUser.id, category },
           create: { userId: fallbackUser.id, category, complaintType },
           select: { id: true, userId: true },
         });

@@ -220,8 +220,8 @@ export function createServiceRequestsService({ prisma }) {
 
       if (fallbackUser) {
         manager = await prisma.serviceManager.upsert({
-          where: { userId: fallbackUser.id },
-          update: { serviceType, category: serviceType },
+          where: { serviceType },
+          update: { userId: fallbackUser.id, category: serviceType },
           create: { userId: fallbackUser.id, serviceType, category: serviceType },
           select: { id: true, userId: true },
         });
@@ -314,7 +314,15 @@ export function createServiceRequestsService({ prisma }) {
     const skip = (page - 1) * limit;
 
     const normalizedRole = String(role || "").toUpperCase();
-    const normalizedCategory = String(category || "").trim().toUpperCase();
+    let normalizedCategory = String(category || "").trim().toUpperCase();
+
+    if (normalizedRole === "SERVICE_MANAGER" && !normalizedCategory) {
+      const actor = await prisma.user.findUnique({
+        where: { id: userId },
+        select: { category: true, serviceManagerProfile: { select: { serviceType: true } } },
+      });
+      normalizedCategory = String(actor?.category || actor?.serviceManagerProfile?.serviceType || "").trim().toUpperCase();
+    }
 
     const where = {
       ...(status ? { status } : {}),

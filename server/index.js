@@ -6,6 +6,7 @@ import swaggerUi from "swagger-ui-express";
 import { createAuthRouter } from "./src/routes/auth.routes.js";
 import { createReportRouter } from "./src/routes/report.routes.js";
 import { createAdminUsersRouter, createUsersRouter } from "./src/routes/users.routes.js";
+import { createStudentImportRouter } from "./src/routes/student-import.routes.js";
 import { createComplaintsRouter } from "./src/routes/complaints.routes.js";
 import { createServiceRequestsRouter } from "./src/routes/service-requests.routes.js";
 import { createNotificationsRouter } from "./src/routes/notifications.routes.js";
@@ -88,6 +89,14 @@ app.use(
 app.use(
     "/api/admin",
     createAdminUsersRouter({
+        prisma,
+        auth,
+    }),
+);
+
+app.use(
+    "/api/admin/imports",
+    createStudentImportRouter({
         prisma,
         auth,
     }),

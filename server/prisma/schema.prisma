@@ -48,6 +48,10 @@ model User {
 
   serviceManagerProfile   ServiceManager?
   complaintManagerProfile ComplaintManager?
+  managedByServiceManagerId String?
+  managedByComplaintManagerId String?
+  managedByServiceManager ServiceManager? @relation("ServiceManagerStaff", fields: [managedByServiceManagerId], references: [id], onDelete: SetNull)
+  managedByComplaintManager ComplaintManager? @relation("ComplaintManagerInvestigators", fields: [managedByComplaintManagerId], references: [id], onDelete: SetNull)
 
   reportsFiled    MisuseReport[] @relation("MisuseReportReporter")
   reportsAgainst  MisuseReport[] @relation("MisuseReportReportedUser")
@@ -56,6 +60,7 @@ model User {
   notifications Notification[]
   refreshTokens     RefreshToken[]
   passwordResetTokens PasswordResetToken[]
+  importBatches ImportBatch[] @relation("ImportBatches")
 
   activityLogsAsActor      ActivityLog[] @relation("ActivityActor")
   activityLogsAsTargetUser ActivityLog[] @relation("ActivityTargetUser")
@@ -75,6 +80,7 @@ model ServiceManager {
   category Category?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  fieldStaff User[] @relation("ServiceManagerStaff")
 
   assignedServiceRequests ServiceRequest[] @relation("ServiceRequestAssignedServiceManager")
 
@@ -92,12 +98,30 @@ model ComplaintManager {
   category Category?
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  investigators User[] @relation("ComplaintManagerInvestigators")
 
   assignedComplaints Complaint[] @relation("ComplaintAssignedComplaintManager")
 
   @@unique([complaintType])
   @@index([category])
   @@index([complaintType])
+}
+
+model ImportBatch {
+  id String @id @default(uuid())
+  importedById String
+  fileName String
+  totalCount Int
+  importedCount Int
+  skippedCount Int
+  failedCount Int
+  errors Json?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  importedBy User @relation("ImportBatches", fields: [importedById], references: [id], onDelete: Cascade)
+
+  @@index([importedById, createdAt])
 }
 
 model RefreshToken {

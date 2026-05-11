@@ -27,6 +27,9 @@ import AdminDashboard from "./pages/admin/AdminDashboard.jsx";
 import AdminReports from "./pages/admin/Reports.jsx";
 import AdminUsers from "./pages/admin/Users.jsx";
 import AdminLogs from "./pages/admin/Logs.jsx";
+import ImportStudents from "./pages/admin/ImportStudents.jsx";
+import StaffManagement from "./pages/manager/StaffManagement.jsx";
+import InvestigatorsManagement from "./pages/manager/InvestigatorsManagement.jsx";
 import Notifications from "./pages/shared/Notifications.jsx";
 import Profile from "./pages/shared/Profile.jsx";
 import Settings from "./pages/shared/Settings.jsx";
@@ -188,6 +191,12 @@ const App = () => (<QueryClientProvider client={queryClient}>
             <Route path="/service-manager/reports" element={<ProtectedRoute allowedRoles={["service_manager", "admin"]}>
                   <ServiceManagerReports />
                 </ProtectedRoute>}/>
+            <Route path="/service-manager/staff-management" element={<ProtectedRoute allowedRoles={["service_manager", "admin"]}>
+                  <StaffManagement />
+                </ProtectedRoute>}/>
+            <Route path="/complaint-manager/investigators" element={<ProtectedRoute allowedRoles={["complaint_manager", "admin"]}>
+                  <InvestigatorsManagement />
+                </ProtectedRoute>}/>
             <Route path="/admin" element={<ProtectedRoute allowedRoles={["admin"]}>
               <Navigate to="/admin/dashboard" replace />
                 </ProtectedRoute>}/>
@@ -200,6 +209,9 @@ const App = () => (<QueryClientProvider client={queryClient}>
                 </ProtectedRoute>}/>
             <Route path="/admin/users" element={<ProtectedRoute allowedRoles={["admin"]}>
                   <AdminUsers />
+                </ProtectedRoute>}/>
+            <Route path="/admin/import-students" element={<ProtectedRoute allowedRoles={["admin"]}>
+                  <ImportStudents />
                 </ProtectedRoute>}/>
             <Route path="/admin/analytics/logs" element={<ProtectedRoute allowedRoles={["admin"]}>
                   <AdminLogs />

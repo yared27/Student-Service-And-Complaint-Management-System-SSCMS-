@@ -141,6 +141,26 @@ export function createUsersController({ prisma }) {
       }
     },
 
+    createUser: async (req, res) => {
+      try {
+        const result = await service.createUser({ payload: req.body, actorId: req.user?.sub, actorRole: req.user?.role });
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("Create user failed:", error);
+        return res.status(500).json({ message: "Failed to create user." });
+      }
+    },
+
+    updateUser: async (req, res) => {
+      try {
+        const result = await service.updateUser(req.params.id, { payload: req.body, actorId: req.user?.sub, actorRole: req.user?.role });
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("Update user failed:", error);
+        return res.status(500).json({ message: "Failed to update user." });
+      }
+    },
+
     createAdminUser: async (req, res) => {
       try {
         const result = await service.createAdminUser(req.body);
