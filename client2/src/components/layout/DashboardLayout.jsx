@@ -30,16 +30,19 @@ const ROLE_NAV = {
     { to: "/service-manager/dashboard", label: "Dashboard", end: true },
     { to: "/service-manager/requests", label: "Requests" },
     { to: "/service-manager/reports", label: "Reports" },
+    { to: "/service-manager/staff-management", label: "Field Staff" },
   ],
   complaint_manager: [
     { to: "/complaint-manager/dashboard", label: "Dashboard", end: true },
     { to: "/complaint-manager/complaints", label: "Complaints" },
+    { to: "/complaint-manager/investigators", label: "Investigators" },
     { to: "/support", label: "Support" },
   ],
   admin: [
     { to: "/admin/dashboard", label: "Dashboard", end: true },
     { to: "/admin/reports", label: "Reports" },
     { to: "/admin/users", label: "Users" },
+    { to: "/admin/import-students", label: "Student Import" },
     { to: "/admin/analytics/logs", label: "Logs" },
   ],
 };

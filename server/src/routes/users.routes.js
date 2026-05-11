@@ -83,6 +83,20 @@ export function createUsersRouter({ prisma, auth }) {
     controller.listUsers,
   );
 
+  router.post(
+    "/",
+    auth.authenticate,
+    auth.authorizeRoles("ADMIN", "SERVICE_MANAGER", "COMPLAINT_MANAGER"),
+    controller.createUser,
+  );
+
+  router.patch(
+    "/:id",
+    auth.authenticate,
+    auth.authorizeRoles("ADMIN", "SERVICE_MANAGER", "COMPLAINT_MANAGER"),
+    controller.updateUser,
+  );
+
   return router;
 }
 

@@ -473,22 +473,9 @@ export function createUsersService({ prisma }) {
 
     let category = requestedCategory;
     const normalizedActorRole = String(actorRole || "").trim().toUpperCase();
-
-    if (normalizedActorRole === "SERVICE_MANAGER" && actorId) {
-      const actor = await prisma.user.findUnique({
-        where: { id: actorId },
-        select: { role: true, category: true },
-      });
-
-      if (String(actor?.role || "").toUpperCase() === "SERVICE_MANAGER" && actor?.category) {
-        category = String(actor.category).trim().toUpperCase();
-      }
-    }
-
-    const where = {
+    let where = {
       ...(role ? { role } : {}),
       ...(status ? { status } : {}),
-      ...(category ? { category } : {}),
       ...(search
         ? {
             OR: [
@@ -499,6 +486,77 @@ export function createUsersService({ prisma }) {
           }
         : {}),
     };
+
+    if (normalizedActorRole === "SERVICE_MANAGER" && actorId) {
+      const actor = await prisma.user.findUnique({
+        where: { id: actorId },
+        select: { role: true, category: true, serviceManagerProfile: { select: { serviceType: true } } },
+      });
+
+      if (String(actor?.role || "").toUpperCase() !== "SERVICE_MANAGER") {
+        return { status: 403, body: { message: "Forbidden." } };
+      }
+
+      const managerCategory = String(actor.category || actor.serviceManagerProfile?.serviceType || "").trim().toUpperCase() || undefined;
+      if (!role) {
+        where.role = "STAFF";
+      }
+
+      if (String(where.role || "").toUpperCase() !== "STAFF") {
+        return { status: 403, body: { message: "Service managers may only view their field staff." } };
+      }
+
+      const actorServiceManager = await prisma.serviceManager.findFirst({
+        where: { userId: actorId },
+        select: { id: true },
+      });
+
+      if (managerCategory) {
+        where = {
+          ...where,
+          AND: [
+            {
+              OR: [
+                { managedByServiceManagerId: actorServiceManager?.id },
+                { category: managerCategory },
+              ],
+            },
+          ],
+        };
+      } else {
+        where.managedByServiceManagerId = actorServiceManager?.id;
+      }
+    }
+
+    if (normalizedActorRole === "COMPLAINT_MANAGER" && actorId) {
+      const actor = await prisma.user.findUnique({
+        where: { id: actorId },
+        select: { role: true, category: true, complaintManagerProfile: { select: { complaintType: true } } },
+      });
+
+      if (String(actor?.role || "").toUpperCase() !== "COMPLAINT_MANAGER") {
+        return { status: 403, body: { message: "Forbidden." } };
+      }
+
+      if (!role) {
+        where.role = "INVESTIGATOR";
+      }
+
+      if (String(where.role || "").toUpperCase() !== "INVESTIGATOR") {
+        return { status: 403, body: { message: "Complaint managers may only view their investigators." } };
+      }
+
+      const actorComplaintManager = await prisma.complaintManager.findFirst({
+        where: { userId: actorId },
+        select: { id: true },
+      });
+
+      where.managedByComplaintManagerId = actorComplaintManager?.id;
+    }
+
+    if (category && normalizedActorRole !== "SERVICE_MANAGER" && normalizedActorRole !== "COMPLAINT_MANAGER") {
+      where.category = category;
+    }
 
     const [total, items] = await prisma.$transaction([
       prisma.user.count({ where }),
@@ -527,6 +585,265 @@ export function createUsersService({ prisma }) {
     ]);
 
     return { status: 200, body: { total, page, limit, items } };
+  }
+
+  async function createUser({ payload, actorId, actorRole }) {
+    const role = normalizeRole(payload?.role);
+    const name = String(payload?.name || "").trim();
+    const email = payload?.email ? String(payload.email || "").trim() : null;
+    const username = payload?.username ? String(payload.username || "").trim() : undefined;
+    const department = payload?.department ? String(payload.department || "").trim() : undefined;
+    const campus = payload?.campus ? String(payload.campus || "").trim() : undefined;
+    const status = payload?.status ? normalizeStatus(payload.status) : "ACTIVE";
+
+    if (!role || !ROLE_VALUES.has(role)) {
+      return { status: 400, body: { message: "Invalid role." } };
+    }
+
+    if (role !== "STAFF" && role !== "INVESTIGATOR") {
+      return { status: 403, body: { message: "Only field staff and investigators may be created from this gateway." } };
+    }
+
+    const manager = await prisma.user.findUnique({
+      where: { id: actorId },
+      include: {
+        serviceManagerProfile: true,
+        complaintManagerProfile: true,
+      },
+    });
+
+    if (!manager) {
+      return { status: 401, body: { message: "Unauthorized." } };
+    }
+
+    const normalizedActorRole = String(actorRole || "").trim().toUpperCase();
+
+    if (normalizedActorRole === "SERVICE_MANAGER") {
+      if (role !== "STAFF") {
+        return { status: 403, body: { message: "Service managers can only create field staff." } };
+      }
+    }
+
+    if (normalizedActorRole === "COMPLAINT_MANAGER") {
+      if (role !== "INVESTIGATOR") {
+        return { status: 403, body: { message: "Complaint managers can only create investigators." } };
+      }
+    }
+
+    if (normalizedActorRole === "SERVICE_MANAGER" && !manager.serviceManagerProfile?.serviceType) {
+      return { status: 400, body: { message: "Service manager profile is missing service type." } };
+    }
+
+    if (normalizedActorRole === "COMPLAINT_MANAGER" && !manager.complaintManagerProfile?.complaintType) {
+      return { status: 400, body: { message: "Complaint manager profile is missing complaint type." } };
+    }
+
+    const resolvedCategory = role === "STAFF"
+      ? manager.serviceManagerProfile?.serviceType || manager.category
+      : undefined;
+    const resolvedComplaintType = role === "INVESTIGATOR"
+      ? manager.complaintManagerProfile?.complaintType
+      : undefined;
+
+    const computedUsername = username || buildCredentialUsername({
+      role,
+      category: resolvedCategory,
+      complaintType: resolvedComplaintType,
+      email,
+      name,
+    });
+
+    const existing = await prisma.user.findFirst({
+      where: {
+        OR: [
+          { username: computedUsername },
+          ...(email ? [{ email }] : []),
+        ],
+      },
+      select: { id: true },
+    });
+
+    if (existing) {
+      return { status: 409, body: { message: "User with same username or email already exists." } };
+    }
+
+    const plainPassword = generateSecurePassword(10);
+    const password = await bcrypt.hash(plainPassword, 10);
+
+    const resolvedCampus = campus || manager.campus || "";
+
+    let managedByServiceManagerId = undefined;
+    if (role === "STAFF" && resolvedCategory) {
+      const mgr = await prisma.serviceManager.findFirst({
+        where: { serviceType: resolvedCategory },
+        select: { id: true },
+      });
+      managedByServiceManagerId = mgr?.id;
+    }
+
+    let managedByComplaintManagerId = undefined;
+    if (role === "INVESTIGATOR" && resolvedComplaintType) {
+      const mgr = await prisma.complaintManager.findFirst({
+        where: { complaintType: resolvedComplaintType },
+        select: { id: true },
+      });
+      managedByComplaintManagerId = mgr?.id;
+    }
+
+    const createdUser = await prisma.user.create({
+      data: {
+        username: computedUsername,
+        name,
+        email,
+        password,
+        role,
+        status,
+        campus: resolvedCampus,
+        department,
+        category: resolvedCategory,
+        managedByServiceManagerId,
+        managedByComplaintManagerId,
+      },
+      include: {
+        serviceManagerProfile: { select: { serviceType: true } },
+        complaintManagerProfile: { select: { complaintType: true } },
+      },
+    });
+
+    // Create profile for managers
+    if (role === "SERVICE_MANAGER" && resolvedCategory) {
+      await prisma.serviceManager.create({
+        data: {
+          userId: createdUser.id,
+          serviceType: resolvedCategory,
+        },
+      });
+    }
+
+    if (role === "COMPLAINT_MANAGER" && resolvedComplaintType) {
+      await prisma.complaintManager.create({
+        data: {
+          userId: createdUser.id,
+          complaintType: resolvedComplaintType,
+        },
+      });
+    }
+
+    return {
+      status: 201,
+      body: {
+        message: "User created.",
+        user: toAdminUser(createdUser),
+      },
+    };
+  }
+
+  async function updateUser(userId, { payload, actorId, actorRole }) {
+    const existing = await prisma.user.findUnique({
+      where: { id: userId },
+      include: {
+        serviceManagerProfile: { select: { serviceType: true } },
+        complaintManagerProfile: { select: { complaintType: true } },
+      },
+    });
+
+    if (!existing) {
+      return { status: 404, body: { message: "User not found." } };
+    }
+
+    const normalizedActorRole = String(actorRole || "").trim().toUpperCase();
+    const targetRole = payload?.role ? normalizeRole(payload.role) : existing.role;
+
+    if (normalizedActorRole === "SERVICE_MANAGER") {
+      const actorServiceManager = await prisma.serviceManager.findFirst({
+        where: { userId: actorId },
+        select: { id: true },
+      });
+      if (!actorServiceManager || existing.role !== "STAFF" || existing.managedByServiceManagerId !== actorServiceManager.id) {
+        return { status: 403, body: { message: "Forbidden." } };
+      }
+      if (payload?.role && normalizeRole(payload.role) !== "STAFF") {
+        return { status: 400, body: { message: "Service managers may not change field staff roles." } };
+      }
+    }
+
+    if (normalizedActorRole === "COMPLAINT_MANAGER") {
+      const actorComplaintManager = await prisma.complaintManager.findFirst({
+        where: { userId: actorId },
+        select: { id: true },
+      });
+      if (!actorComplaintManager || existing.role !== "INVESTIGATOR" || existing.managedByComplaintManagerId !== actorComplaintManager.id) {
+        return { status: 403, body: { message: "Forbidden." } };
+      }
+      if (payload?.role && normalizeRole(payload.role) !== "INVESTIGATOR") {
+        return { status: 400, body: { message: "Complaint managers may not change investigator roles." } };
+      }
+    }
+
+    if (normalizedActorRole !== "ADMIN" && normalizedActorRole !== "SERVICE_MANAGER" && normalizedActorRole !== "COMPLAINT_MANAGER") {
+      return { status: 403, body: { message: "Forbidden." } };
+    }
+
+    const nextStatus = payload?.status ? normalizeStatus(payload.status) : existing.status;
+    const isActiveUpdate = payload?.isActive !== undefined ? toBooleanOrUndefined(payload?.isActive) : undefined;
+
+    const updateData = {
+      name: payload?.name !== undefined ? String(payload.name || "").trim() || existing.name : undefined,
+      email: payload?.email !== undefined ? String(payload.email || "").trim() || null : undefined,
+      status: nextStatus,
+      isActive: isActiveUpdate !== undefined ? isActiveUpdate : undefined,
+      department: payload?.department !== undefined ? String(payload.department || "").trim() || existing.department : undefined,
+      campus: payload?.campus !== undefined ? String(payload.campus || "").trim() || existing.campus : undefined,
+    };
+
+    if (payload?.role) {
+      updateData.role = targetRole;
+      if (targetRole !== "STAFF") {
+        updateData.managedByServiceManagerId = null;
+      }
+      if (targetRole !== "INVESTIGATOR") {
+        updateData.managedByComplaintManagerId = null;
+      }
+    }
+
+    const updated = await prisma.user.update({
+      where: { id: userId },
+      data: updateData,
+      include: {
+        serviceManagerProfile: { select: { serviceType: true } },
+        complaintManagerProfile: { select: { complaintType: true } },
+      },
+    });
+
+    if (nextStatus === "BANNED") {
+      await prisma.user.update({
+        where: { id: userId },
+        data: { isActive: false },
+      });
+    }
+
+    if (nextStatus === "WARNED" || nextStatus === "BANNED") {
+      await prisma.notification.create({
+        data: {
+          userId,
+          type: "SYSTEM",
+          title: nextStatus === "WARNED"
+            ? "You have been warned"
+            : "Your account has been banned",
+          message: nextStatus === "WARNED"
+            ? "An administrator has warned your account."
+            : "An administrator has banned your account.",
+        },
+      });
+    }
+
+    return {
+      status: 200,
+      body: {
+        message: "User updated.",
+        user: toAdminUser(updated),
+      },
+    };
   }
 
   async function listAdminUsers(query) {
@@ -1166,6 +1483,8 @@ export function createUsersService({ prisma }) {
     changePassword,
     listUsers,
     listAdminUsers,
+    createUser,
+    updateUser,
     createAdminUser,
     updateAdminUser,
     exportAdminUsersCsv,
