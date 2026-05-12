@@ -36,6 +36,8 @@ export default function AdminLogsPage() {
   const { user } = useAuth();
   const [loading, setLoading] = useState(true);
   const [logs, setLogs] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 10;
 
   const [roleFilter, setRoleFilter] = useState("ALL");
   const [fromDate, setFromDate] = useState("");
@@ -91,6 +93,23 @@ export default function AdminLogsPage() {
       return true;
     });
   }, [logs, roleFilter, fromDate, toDate]);
+
+  const totalPages = Math.max(1, Math.ceil(filteredLogs.length / pageSize));
+
+  const paginatedLogs = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return filteredLogs.slice(start, start + pageSize);
+  }, [filteredLogs, currentPage]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [roleFilter, fromDate, toDate, viewMode]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   return (
     <DashboardLayout role="admin" topLinks={topLinks} user={user || {}}>
@@ -154,7 +173,7 @@ export default function AdminLogsPage() {
                     </td>
                   </tr>
                 ) : (
-                  filteredLogs.map((entry) => (
+                  paginatedLogs.map((entry) => (
                     <tr key={entry.id} className="border-t hover:bg-secondary/30">
                       <td className="px-4 py-3">{fmtDate(entry.createdAt || entry.time)}</td>
                       <td className="px-4 py-3">{entry?.user?.name || entry?.actor?.name || "System"}</td>
@@ -174,7 +193,7 @@ export default function AdminLogsPage() {
               {filteredLogs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">No logs found.</p>
               ) : (
-                filteredLogs.map((entry) => (
+                  paginatedLogs.map((entry) => (
                   <div key={entry.id} className="relative rounded-xl border bg-card p-4 shadow-card">
                     <span className="absolute -left-[22px] top-5 h-3 w-3 rounded-full bg-accent" />
                     <p className="text-xs text-muted-foreground">{fmtDate(entry.createdAt || entry.time)}</p>
@@ -191,6 +210,35 @@ export default function AdminLogsPage() {
             </div>
           </div>
         )}
+
+        {filteredLogs.length > 0 ? (
+          <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+            <p className="text-sm text-muted-foreground">
+              Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, filteredLogs.length)} of {filteredLogs.length} logs
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+              >
+                Previous
+              </Button>
+              <span className="text-sm text-muted-foreground">
+                Page {currentPage} of {totalPages}
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage === totalPages}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        ) : null}
       </section>
       </div>
     </DashboardLayout>

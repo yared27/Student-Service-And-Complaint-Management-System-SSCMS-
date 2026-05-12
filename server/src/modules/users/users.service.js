@@ -1039,23 +1039,58 @@ export function createUsersService({ prisma }) {
   }
 
   async function getAdminAnalyticsServices() {
-    const serviceRequestsByType = await prisma.serviceRequest.groupBy({
-      by: ["serviceType"],
-      _count: { _all: true },
-    });
+    const [serviceRequestsByType, requestsByStatus, requestsByPriority] = await Promise.all([
+      prisma.serviceRequest.groupBy({
+        by: ["serviceType"],
+        _count: { _all: true },
+      }),
+      prisma.serviceRequest.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
+      prisma.serviceRequest.groupBy({
+        by: ["priority"],
+        _count: { _all: true },
+      }),
+    ]);
 
     const sortedServiceRequests = [...serviceRequestsByType].sort((left, right) => right._count._all - left._count._all);
-    return { status: 200, body: sortedServiceRequests };
+    const totalRequests = requestsByStatus.reduce((sum, item) => sum + item._count._all, 0);
+    
+    return {
+      status: 200,
+      body: {
+        byType: sortedServiceRequests,
+        byStatus: requestsByStatus,
+        byPriority: requestsByPriority,
+        total: totalRequests,
+      },
+    };
   }
 
   async function getAdminAnalyticsComplaints() {
-    const complaintsByType = await prisma.complaint.groupBy({
-      by: ["complaintType"],
-      _count: { _all: true },
-    });
+    const [complaintsByType, complaintsByStatus] = await Promise.all([
+      prisma.complaint.groupBy({
+        by: ["complaintType"],
+        _count: { _all: true },
+      }),
+      prisma.complaint.groupBy({
+        by: ["status"],
+        _count: { _all: true },
+      }),
+    ]);
 
     const sortedComplaints = [...complaintsByType].sort((left, right) => right._count._all - left._count._all);
-    return { status: 200, body: sortedComplaints };
+    const totalComplaints = complaintsByStatus.reduce((sum, item) => sum + item._count._all, 0);
+    
+    return {
+      status: 200,
+      body: {
+        byType: sortedComplaints,
+        byStatus: complaintsByStatus,
+        total: totalComplaints,
+      },
+    };
   }
 
   async function getAdminAnalyticsUsers() {
@@ -1103,8 +1138,8 @@ export function createUsersService({ prisma }) {
       getAdminAnalyticsUsers(),
     ]);
 
-    const serviceRequestsByType = servicesResult.body;
-    const complaintsByType = complaintsResult.body;
+    const serviceData = servicesResult.body;
+    const complaintData = complaintsResult.body;
     const {
       totalUsers,
       activeUsers,
@@ -1117,16 +1152,29 @@ export function createUsersService({ prisma }) {
     return {
       status: 200,
       body: {
-        totalUsers,
-        activeUsers,
-        bannedUsers,
-        warnedUsers,
-        reportedStudentsCount,
-        mostRequestedService: serviceRequestsByType[0] || null,
-        mostFrequentComplaint: complaintsByType[0] || null,
-        serviceRequestsByType,
-        complaintsByType,
-        reportsByCampus,
+        summary: {
+          totalUsers,
+          activeUsers,
+          bannedUsers,
+          warnedUsers,
+          reportedStudentsCount,
+          totalServiceRequests: serviceData.total,
+          totalComplaints: complaintData.total,
+        },
+        services: {
+          mostRequested: serviceData.byType[0] || null,
+          byType: serviceData.byType,
+          byStatus: serviceData.byStatus,
+          byPriority: serviceData.byPriority,
+        },
+        complaints: {
+          mostFrequent: complaintData.byType[0] || null,
+          byType: complaintData.byType,
+          byStatus: complaintData.byStatus,
+        },
+        users: {
+          reportsByCampus,
+        },
       },
     };
   }

@@ -28,6 +28,7 @@ import AdminReports from "./pages/admin/Reports.jsx";
 import AdminUsers from "./pages/admin/Users.jsx";
 import AdminLogs from "./pages/admin/Logs.jsx";
 import ImportStudents from "./pages/admin/ImportStudents.jsx";
+import SystemConfigPage from "./pages/admin/SystemConfigPage.jsx";
 import StaffManagement from "./pages/manager/StaffManagement.jsx";
 import InvestigatorsManagement from "./pages/manager/InvestigatorsManagement.jsx";
 import Notifications from "./pages/shared/Notifications.jsx";
@@ -215,6 +216,9 @@ const App = () => (<QueryClientProvider client={queryClient}>
                 </ProtectedRoute>}/>
             <Route path="/admin/analytics/logs" element={<ProtectedRoute allowedRoles={["admin"]}>
                   <AdminLogs />
+                </ProtectedRoute>}/>
+            <Route path="/admin/system-config" element={<ProtectedRoute allowedRoles={["admin"]}>
+                  <SystemConfigPage />
                 </ProtectedRoute>}/>
             <Route path="/investigator" element={<Navigate to="/investigator/dashboard" replace />} />
             <Route path="/investigator/dashboard" element={<ProtectedRoute allowedRoles={["investigator", "admin"]}>
