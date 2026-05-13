@@ -9,22 +9,93 @@ const CAMPUS = "ARBA_MINCH_MAIN";
 const CAMPUSES = [
   "Main Campus",
   "Abaya Campus",
-  "Neche Sar Campus",
+  "Nechi Sar Campus",
   "Kulfo Campus",
   "Chamo Campus",
   "Sawla Campus",
 ];
 
 const COMPLAINT_BUREAUS = [
-  { complaintType: "ACADEMIC", name: "Academic Bureau Investigator", email: "academic_investigator@amu.edu.et" },
-  { complaintType: "FOOD_SERVICE", name: "Food Service Bureau Investigator", email: "foodservice_investigator@amu.edu.et" },
-  { complaintType: "DISCIPLINE", name: "Discipline Bureau Investigator", email: "discipline_investigator@amu.edu.et" },
-  { complaintType: "GENERAL_SERVICE", name: "General Service Bureau Investigator", email: "generalservice_investigator@amu.edu.et" },
-  { complaintType: "WOMEN_CASE", name: "Women Case Bureau Investigator", email: "womencase_investigator@amu.edu.et" },
-  { complaintType: "HEALTH_CASE", name: "Health Case Bureau Investigator", email: "healthcase_investigator@amu.edu.et" },
-  { complaintType: "DISABILITY_CASE", name: "Disability Case Bureau Investigator", email: "disability_investigator@amu.edu.et" },
-  { complaintType: "SPORTS", name: "Sports Bureau Investigator", email: "sports_investigator@amu.edu.et" },
+  {
+    complaintType: "ACADEMIC",
+    label: "Academic",
+    managerName: "Academic Bureau Manager",
+    managerEmail: "academic_manager@amu.edu.et",
+    investigatorName: "Academic Bureau Investigator",
+    investigatorEmail: "academic_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "FOOD_SERVICE",
+    label: "Food Service",
+    managerName: "Food Service Bureau Manager",
+    managerEmail: "foodservice_manager@amu.edu.et",
+    investigatorName: "Food Service Bureau Investigator",
+    investigatorEmail: "foodservice_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "DISCIPLINE",
+    label: "Discipline",
+    managerName: "Discipline Bureau Manager",
+    managerEmail: "discipline_manager@amu.edu.et",
+    investigatorName: "Discipline Bureau Investigator",
+    investigatorEmail: "discipline_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "GENERAL_SERVICE",
+    label: "General Service",
+    managerName: "General Service Bureau Manager",
+    managerEmail: "generalservice_manager@amu.edu.et",
+    investigatorName: "General Service Bureau Investigator",
+    investigatorEmail: "generalservice_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "WOMEN_CASE",
+    label: "Women Case",
+    managerName: "Women Case Bureau Manager",
+    managerEmail: "womencase_manager@amu.edu.et",
+    investigatorName: "Women Case Bureau Investigator",
+    investigatorEmail: "womencase_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "HEALTH_CASE",
+    label: "Health Case",
+    managerName: "Health Case Bureau Manager",
+    managerEmail: "healthcase_manager@amu.edu.et",
+    investigatorName: "Health Case Bureau Investigator",
+    investigatorEmail: "healthcase_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "DISABILITY_CASE",
+    label: "Disability Case",
+    managerName: "Disability Case Bureau Manager",
+    managerEmail: "disability_manager@amu.edu.et",
+    investigatorName: "Disability Case Bureau Investigator",
+    investigatorEmail: "disability_investigator@amu.edu.et",
+  },
+  {
+    complaintType: "SPORTS",
+    label: "Sports",
+    managerName: "Sports Bureau Manager",
+    managerEmail: "sports_manager@amu.edu.et",
+    investigatorName: "Sports Bureau Investigator",
+    investigatorEmail: "sports_investigator@amu.edu.et",
+  },
 ];
+
+const COMPLAINT_CATEGORY_BY_TYPE = {
+  ACADEMIC: "CLASSROOM",
+  FOOD_SERVICE: "CAFETERIA",
+  DISCIPLINE: "DORMITORY",
+  GENERAL_SERVICE: "UTILITIES",
+  WOMEN_CASE: "UTILITIES",
+  HEALTH_CASE: "CLINIC",
+  DISABILITY_CASE: "CLINIC",
+  SPORTS: "CLASSROOM",
+};
+
+function complaintTypeToCategory(complaintType) {
+  return COMPLAINT_CATEGORY_BY_TYPE[String(complaintType || "").toUpperCase()] || "UTILITIES";
+}
 
 
 async function upsertUser(data) {
@@ -76,6 +147,50 @@ async function upsertComplaintManagerProfile({ userId, complaintType }) {
   });
 }
 
+async function seedComplaintBureaus(hashedPassword) {
+  const seededBureaus = {};
+
+  for (const bureau of COMPLAINT_BUREAUS) {
+    const category = complaintTypeToCategory(bureau.complaintType);
+    const managerUsername = `CM-${bureau.complaintType}`;
+    const investigatorUsername = `INV-${bureau.complaintType}-001`;
+
+    const manager = await upsertUser({
+      username: managerUsername,
+      name: bureau.managerName,
+      email: bureau.managerEmail,
+      role: "COMPLAINT_MANAGER",
+      campus: CAMPUS,
+      department: `${bureau.label} Bureau`,
+      category,
+      password: hashedPassword,
+    });
+
+    const profile = await upsertComplaintManagerProfile({ userId: manager.id, complaintType: bureau.complaintType });
+
+    const investigator = await upsertUser({
+      username: investigatorUsername,
+      name: bureau.investigatorName,
+      email: bureau.investigatorEmail,
+      role: "INVESTIGATOR",
+      campus: CAMPUS,
+      department: `${bureau.label} Investigation Team`,
+      category,
+      password: hashedPassword,
+    });
+
+    await prisma.user.update({
+      where: { id: investigator.id },
+      data: { managedByComplaintManagerId: profile.id },
+    });
+
+    seededBureaus[bureau.complaintType] = { manager, investigator, profile };
+  }
+
+  console.log(`Seeded ${COMPLAINT_BUREAUS.length} complaint managers and investigators.`);
+  return seededBureaus;
+}
+
 async function seedStudents(hashedPassword) {
     const studentDepts = [
       { prefix: "NSR", name: "Nature Science", count: 5 },
@@ -105,26 +220,6 @@ async function seedStudents(hashedPassword) {
     }
 
     console.log(`Seeded ${studentIndex} students.`);
-  }
-
-  async function seedInvestigators(hashedPassword) {
-    for (const bureau of COMPLAINT_BUREAUS) {
-      const investigatorUsername = `${bureau.complaintType}_INVESTIGATOR_001`;
-
-      const investigator = await upsertUser({
-        username: investigatorUsername,
-        name: bureau.name,
-        email: bureau.email,
-        role: "INVESTIGATOR",
-        campus: CAMPUS,
-        department: `${bureau.complaintType.replaceAll("_", " ")} Investigations`,
-        password: hashedPassword,
-      });
-
-      await upsertComplaintManagerProfile({ userId: investigator.id, complaintType: bureau.complaintType });
-    }
-
-    console.log(`Seeded 8 investigators for complaint bureaus.`);
   }
 
   async function seedServiceManagers(hashedPassword) {
@@ -219,15 +314,15 @@ async function main() {
   // Delete old users to avoid unique constraint conflicts
   await prisma.user.deleteMany({
     where: {
-      role: { in: ["SERVICE_MANAGER", "STAFF"] },
+      role: { in: ["SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "INVESTIGATOR"] },
     },
   });
 
   // Seed students with NSR/SSR format
   await seedStudents(hashedPassword);
 
-  // Seed investigators aligned with complaint bureaus
-  await seedInvestigators(hashedPassword);
+  // Seed complaint managers and investigators aligned with complaint bureaus
+  const complaintBureaus = await seedComplaintBureaus(hashedPassword);
 
   // Seed service managers for each service type
   const serviceManagers = await seedServiceManagers(hashedPassword);
@@ -243,24 +338,6 @@ async function main() {
       role: "ADMIN",
       campus: CAMPUS,
       department: "ICT",
-      password: hashedPassword,
-    }),
-    upsertUser({
-      username: "CM-001",
-      name: "Bereket Student Union",
-      email: "complaints.union@amu.edu.et",
-      role: "COMPLAINT_MANAGER",
-      campus: CAMPUS,
-      department: "Student Union",
-      password: hashedPassword,
-    }),
-    upsertUser({
-      username: "INV-001",
-      name: "Alemu Investigation Lead",
-      email: "investigator@amu.edu.et",
-      role: "INVESTIGATOR",
-      campus: CAMPUS,
-      department: "Student Affairs",
       password: hashedPassword,
     }),
     upsertUser({
@@ -325,16 +402,10 @@ async function main() {
     serviceManagerProfiles[serviceType] = profile;
   }
 
-  const complaintManagerProfile = await upsertComplaintManagerProfile({
-    userId: byUsername["CM-001"].id,
-    complaintType: "ACADEMIC",
-  });
-
-  // Link INV-001 investigator to the complaint manager
-  await prisma.user.update({
-    where: { id: byUsername["INV-001"].id },
-    data: { managedByComplaintManagerId: complaintManagerProfile.id },
-  });
+  const academicBureau = complaintBureaus.ACADEMIC;
+  const disciplineBureau = complaintBureaus.DISCIPLINE;
+  const foodServiceBureau = complaintBureaus.FOOD_SERVICE;
+  const generalServiceBureau = complaintBureaus.GENERAL_SERVICE;
 
   const complaintA = await prisma.complaint.create({
     data: {
@@ -344,8 +415,8 @@ async function main() {
       priority: "HIGH",
       complaintType: "DISCIPLINE",
       createdById: byUsername["NSR/1101/24"].id,
-      assignedToId: byUsername["CM-001"].id,
-      assignedComplaintManagerId: complaintManagerProfile.id,
+      assignedToId: disciplineBureau.investigator.id,
+      assignedComplaintManagerId: disciplineBureau.profile.id,
     },
   });
 
@@ -357,8 +428,8 @@ async function main() {
       priority: "MEDIUM",
       complaintType: "FOOD_SERVICE",
       createdById: byUsername["NSR/1102/24"].id,
-      assignedToId: byUsername["INV-001"].id,
-      assignedComplaintManagerId: complaintManagerProfile.id,
+      assignedToId: foodServiceBureau.investigator.id,
+      assignedComplaintManagerId: foodServiceBureau.profile.id,
     },
   });
 
@@ -370,8 +441,8 @@ async function main() {
       priority: "LOW",
       complaintType: "GENERAL_SERVICE",
       createdById: byUsername["NSR/1104/24"].id,
-      assignedToId: byUsername["CM-001"].id,
-      assignedComplaintManagerId: complaintManagerProfile.id,
+      assignedToId: generalServiceBureau.investigator.id,
+      assignedComplaintManagerId: generalServiceBureau.profile.id,
     },
   });
 
@@ -425,7 +496,7 @@ async function main() {
 
   await prisma.misuseReport.create({
     data: {
-      reporterId: byUsername["CM-001"].id,
+      reporterId: generalServiceBureau.manager.id,
       reportedUserId: byUsername["NSR/1104/24"].id,
       reason: "ABUSIVE_LANGUAGE",
       details: "Insulting language used during complaint follow-up.",
@@ -439,7 +510,7 @@ async function main() {
 
   await prisma.misuseReport.create({
     data: {
-      reporterId: byUsername["CM-001"].id,
+      reporterId: foodServiceBureau.manager.id,
       reportedUserId: byUsername["NSR/1102/24"].id,
       reason: "DUPLICATE_SPAM",
       details: "Potential duplicate cases, but later found valid.",
@@ -493,7 +564,7 @@ async function main() {
         description: "Service manager assigned request to field staff.",
       },
       {
-        actorId: byUsername["CM-001"].id,
+        actorId: disciplineBureau.manager.id,
         complaintId: complaintB.id,
         action: "COMPLAINT_ASSIGNED",
         entityType: "COMPLAINT",

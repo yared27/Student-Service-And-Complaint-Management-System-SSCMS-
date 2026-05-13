@@ -1,13 +1,26 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, Loader2, RefreshCcw, Send } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, RefreshCcw, Truck, Users } from "lucide-react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { assignServiceRequest, listServiceRequests, listUsers, updateServiceRequestStatus } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import ReportStudentDialog from "@/components/ReportStudentDialog";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { KPICard, StatsRow, ActivityTimeline } from "@/components/ui";
+import { ChartCard } from "@/components/charts/ChartCard";
 
 const statusOptions = ["SUBMITTED", "IN_PROGRESS", "COMPLETED", "REJECTED"];
+
+function extractLatestNote(activityLogs = []) {
+  const noteLog = activityLogs.find((entry) => String(entry?.description || "").includes("Note:"));
+  if (!noteLog) {
+    return "";
+  }
+
+  const description = String(noteLog.description || "");
+  const notePart = description.split("Note:").slice(1).join("Note:").trim();
+  return notePart;
+}
 
 export default function ServiceManagerDashboard() {
   const { token, user } = useAuth();
@@ -20,11 +33,17 @@ export default function ServiceManagerDashboard() {
   const [statusNotes, setStatusNotes] = useState({});
   const [savingRequestId, setSavingRequestId] = useState(null);
   const [reportTarget, setReportTarget] = useState(null);
+  const [activities, setActivities] = useState([]);
 
-  const topLinks = [
-    { to: "/service-manager/requests", label: "Requests", end: true },
-    { to: "/service-manager/reports", label: "Reports" },
-  ];
+  const serviceScope = String(user?.category || user?.serviceType || "").trim().toUpperCase();
+
+  function isInServiceScope(item) {
+    if (!serviceScope) {
+      return true;
+    }
+
+    return String(item?.category || item?.serviceType || "").trim().toUpperCase() === serviceScope;
+  }
 
   async function loadData() {
     if (!token) {
@@ -40,8 +59,25 @@ export default function ServiceManagerDashboard() {
         listUsers(token, { role: "STAFF", limit: 100, category: user?.category }),
       ]);
 
-      setRequests(requestResponse.items || []);
+      const requestsData = (requestResponse.items || []).filter(isInServiceScope);
+      setRequests(requestsData);
       setStaff(staffResponse.items || []);
+
+      const activityFeed = requestsData
+        .flatMap((request) =>
+          (request.activityLogs || []).map((entry) => ({
+            id: entry.id,
+            type: entry.action,
+            description: entry.description || `${request.serviceType} request - ${request.title}`,
+            actor: entry.actor || { name: request.assignedTo?.name || "System", role: "STAFF" },
+            entity: "Service Request",
+            createdAt: new Date(entry.createdAt),
+          })),
+        )
+        .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+        .slice(0, 3);
+
+      setActivities(activityFeed);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load service requests.");
     } finally {
@@ -51,7 +87,7 @@ export default function ServiceManagerDashboard() {
 
   useEffect(() => {
     loadData();
-  }, [token]);
+  }, [token, serviceScope]);
 
   const updateAssignment = async (requestId) => {
     const assignedToId = selectedAssignee[requestId];
@@ -102,203 +138,189 @@ export default function ServiceManagerDashboard() {
 
   const [confirmation, setConfirmation] = useState({ open: false, message: "" });
 
+  const completedRequests = requests.filter((r) => r.status === "COMPLETED");
+  const inProgressRequests = requests.filter((r) => r.status === "IN_PROGRESS");
+  const rejectedRequests = requests.filter((r) => r.status === "REJECTED");
+
+  const kpiItems = [
+    {
+      icon: Truck,
+      label: "Total Requests",
+      value: loading ? "..." : requests.length,
+      color: "bg-blue-50",
+      iconColor: "text-blue-600",
+      trend: 15,
+      trendLabel: "this month",
+    },
+    {
+      icon: Clock,
+      label: "In Progress",
+      value: loading ? "..." : inProgressRequests.length,
+      color: "bg-orange-50",
+      iconColor: "text-orange-600",
+      trend: 5,
+      trendLabel: "assigned",
+    },
+    {
+      icon: CheckCircle,
+      label: "Completed",
+      value: loading ? "..." : completedRequests.length,
+      color: "bg-green-50",
+      iconColor: "text-green-600",
+      trend: 18,
+      trendLabel: "this month",
+    },
+    {
+      icon: Users,
+      label: "Field Staff",
+      value: loading ? "..." : staff.length,
+      color: "bg-purple-50",
+      iconColor: "text-purple-600",
+      trend: 0,
+      trendLabel: "available",
+    },
+  ];
+
   return (
-    <DashboardLayout role="service_manager" topLinks={topLinks} user={user || {}}>
-      <div className="max-w-6xl mx-auto space-y-8">
+    <DashboardLayout role="service_manager" user={user || {}}>
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
         <div className="flex items-start justify-between gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Service workflow</p>
             <h1 className="mt-2 text-3xl font-bold text-foreground">Service Manager Dashboard</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Assign requests to field staff and move them through the backend lifecycle.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Assign requests to field staff and track completion through the service lifecycle.</p>
           </div>
-          <button onClick={loadData} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent">
+          <button onClick={loadData} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent transition-colors">
             <RefreshCcw className="h-4 w-4" /> Refresh
           </button>
         </div>
 
         {error && <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Requests</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : requests.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Staff available</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : staff.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Open</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : requests.filter((item) => !["COMPLETED", "REJECTED"].includes(item.status)).length}</p>
-          </div>
-        </div>
+        {/* KPI Cards */}
+        <section>
+          <StatsRow items={kpiItems} />
+        </section>
 
-        <div className="space-y-4">
-          {loading ? (
-            <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">Loading requests...</div>
-          ) : requests.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">No service requests found.</div>
-          ) : (
-            requests.map((request) => (
-              <div key={request.id} className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{request.priority}</p>
-                    <h2 className="mt-1 text-lg font-bold text-foreground">{request.title}</h2>
-                    <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{request.description}</p>
-                  </div>
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">{request.status}</span>
-                </div>
-
-                {(() => {
-                  const latestStaffNote = (request.activityLogs || []).find((log) => log.actor?.role === "STAFF" && log.description);
-                  if (!latestStaffNote) {
-                    return null;
-                  }
-
-                  const noteTone = /unable to complete|needs support|blocked/i.test(latestStaffNote.description)
-                    ? "border-amber-200 bg-amber-50 text-amber-800"
-                    : /ready for manager review|finished/i.test(latestStaffNote.description)
-                      ? "border-emerald-200 bg-emerald-50 text-emerald-800"
-                      : "border-slate-200 bg-slate-50 text-slate-700";
-
-                  return (
-                    <div className={`mt-4 rounded-2xl border px-4 py-3 ${noteTone}`}>
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-[10px] font-black uppercase tracking-[0.24em]">Latest staff message</p>
-                        <span className="text-[10px] font-semibold uppercase tracking-[0.18em]">
-                          {latestStaffNote.actor?.name || latestStaffNote.actor?.username || "Staff"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm leading-relaxed">{latestStaffNote.description}</p>
-                    </div>
-                  );
-                })()}
-
-                {(() => {
-                  const urlRegex = /(https?:\/\/[^\s]+\.(?:jpg|jpeg|png|gif|webp|pdf))/gi;
-                  const matches = request.description.match(urlRegex) || [];
-                  const uniqueUrls = [...new Set(matches)];
-                  
-                  if (uniqueUrls.length > 0) {
-                    return (
-                      <div className="mt-4 pt-4 border-t border-border">
-                        <p className="mb-3 text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Attachments</p>
-                        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-                          {uniqueUrls.map((url, index) => (
-                            <a
-                              key={`${url}-${index}`}
-                              href={url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="group rounded-2xl border border-border bg-background overflow-hidden hover:border-foreground transition-colors"
-                            >
-                              <div className="aspect-video bg-muted overflow-hidden">
-                                <img
-                                  src={url}
-                                  alt={`Attachment ${index + 1}`}
-                                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                                  loading="lazy"
-                                  onError={(e) => {
-                                    e.target.style.display = 'none';
-                                  }}
-                                />
-                              </div>
-                              <div className="p-2 text-center text-[10px] font-medium text-muted-foreground group-hover:text-foreground transition-colors">
-                                View file
-                              </div>
-                            </a>
-                          ))}
+        {/* Service Type Overview + Activity */}
+        <section className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <ChartCard title="Service Overview" subtitle="Latest requests by priority" loading={loading}>
+              <div className="space-y-3 max-h-80 overflow-y-auto">
+                {requests.length === 0 ? (
+                  <div className="text-center py-8 text-muted-foreground">No service requests found.</div>
+                ) : (
+                  requests.slice(0, 6).map((request) => (
+                    <div key={request.id} className="rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors">
+                      <div className="flex items-start justify-between gap-3 mb-2">
+                        <div className="flex-1 min-w-0">
+                          <p className="font-semibold text-foreground truncate">{request.title}</p>
+                          <p className="text-xs text-muted-foreground">{request.serviceType}</p>
                         </div>
+                        <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">{request.priority}</span>
                       </div>
-                    );
-                  }
-                  return null;
-                })()}
+                      <div className="flex items-center justify-between text-xs text-muted-foreground">
+                        <span>{request.assignedTo?.name || "Unassigned"}</span>
+                        <span className="rounded-full bg-muted px-2 py-0.5">{request.status}</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </ChartCard>
+          </div>
 
-                <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_minmax(280px,0.9fr)_auto] lg:items-end">
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Assign to field staff</label>
-                    <select
-                      value={selectedAssignee[request.id] || request.assignedToId || ""}
-                      onChange={(event) => setSelectedAssignee((current) => ({ ...current, [request.id]: event.target.value }))}
-                      className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none"
-                    >
-                      <option value="">Select staff member</option>
-                      {staff.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name} ({member.username})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
+          {/* Activity Feed */}
+          <div>
+            <ChartCard title="Recent Activity" subtitle="Staff updates" loading={loading}>
+              <ActivityTimeline activities={activities} loading={loading} />
+            </ChartCard>
+          </div>
+        </section>
 
-                  <button onClick={() => updateAssignment(request.id)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent">
-                    Assign <Send className="h-4 w-4" />
-                  </button>
+        {/* Request Management Table */}
+        <section>
+          <ChartCard title="Manage Requests" subtitle={`Showing ${requests.length} requests`} loading={loading}>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {requests.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No service requests found.</div>
+              ) : (
+                requests.map((request) => (
+                  <div key={request.id} className="rounded-2xl border border-border p-4 shadow-sm transition-colors hover:border-foreground">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-foreground">{request.title}</p>
+                        <p className="text-sm text-muted-foreground truncate">{request.description}</p>
+                        {extractLatestNote(request.activityLogs || []) ? (
+                          <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">Latest staff note:</span> {extractLatestNote(request.activityLogs || [])}
+                          </div>
+                        ) : null}
+                      </div>
+                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{request.status}</span>
+                    </div>
 
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Final status</label>
-                    <select
-                      value={selectedStatus[request.id] || request.statusRaw || request.status}
-                      onChange={(event) => setSelectedStatus((current) => ({ ...current, [request.id]: event.target.value }))}
-                      className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors hover:border-primary/50 focus:border-primary"
-                    >
-                      {statusOptions
-                        .filter((s) => {
-                          // Only allow finalization options for the assigned service manager or admin
-                          const isAssignedManager = request.assignedServiceManager?.userId === user?.id || user?.role === "ADMIN";
-                          if (["COMPLETED", "REJECTED"].includes(s) && !isAssignedManager) {
-                            return false;
-                          }
-                          return true;
-                        })
-                        .map((status) => (
+                    <div className="grid gap-2 lg:grid-cols-[1.1fr_0.9fr_auto] lg:items-end">
+                      <select
+                        value={selectedAssignee[request.id] || request.assignedToId || ""}
+                        onChange={(event) => setSelectedAssignee((current) => ({ ...current, [request.id]: event.target.value }))}
+                        className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">Assign staff...</option>
+                        {staff.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}
+                          </option>
+                        ))}
+                      </select>
+
+                      <select
+                        value={selectedStatus[request.id] || request.statusRaw || request.status}
+                        onChange={(event) => setSelectedStatus((current) => ({ ...current, [request.id]: event.target.value }))}
+                        className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary"
+                      >
+                        {statusOptions.map((status) => (
                           <option key={status} value={status}>
                             {status}
                           </option>
                         ))}
-                    </select>
+                      </select>
+
+                      <button
+                        onClick={() => {
+                          updateStatus(request.id);
+                          updateAssignment(request.id);
+                        }}
+                        disabled={savingRequestId === request.id}
+                        className="rounded-2xl bg-primary px-5 py-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                      >
+                        {savingRequestId === request.id ? "Updating..." : "Update"}
+                      </button>
+                      <button
+                        onClick={() => setReportTarget(request)}
+                        className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                      >
+                        Report Student
+                      </button>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Final note for manager</label>
+                      <textarea
+                        value={statusNotes[request.id] || ""}
+                        onChange={(event) => setStatusNotes((current) => ({ ...current, [request.id]: event.target.value }))}
+                        placeholder="Add manager note or rejection reason..."
+                        rows={2}
+                        className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
                   </div>
-
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
-                      Manager note / rejection reason
-                    </label>
-                    <textarea
-                      value={statusNotes[request.id] || ""}
-                      onChange={(event) => setStatusNotes((current) => ({ ...current, [request.id]: event.target.value }))}
-                      placeholder="Required when rejecting. Optional for completion confirmation."
-                      rows={4}
-                      className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors hover:border-primary/50 focus:border-primary"
-                    />
-                  </div>
-
-                  <button
-                    onClick={() => updateStatus(request.id)}
-                    disabled={savingRequestId === request.id}
-                    className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground transition-all duration-200 hover:-translate-y-0.5 hover:shadow-lg hover:shadow-primary/20 disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-none"
-                  >
-                    {savingRequestId === request.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <ArrowRight className="h-4 w-4" />}
-                    {savingRequestId === request.id ? "Updating..." : "Update Status"}
-                  </button>
-                </div>
-
-                <div className="mt-3 flex flex-wrap items-center justify-between gap-3 text-xs text-muted-foreground">
-                  <span>
-                    Created by {request.createdBy?.name || request.createdById} / Assigned to {request.assignedTo?.name || "Unassigned"}
-                  </span>
-                  <button
-                    onClick={() => setReportTarget(request)}
-                    className="inline-flex items-center rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
-                  >
-                    Report student
-                  </button>
-                </div>
-              </div>
-            ))
-          )}
-        </div>
+                ))
+              )}
+            </div>
+          </ChartCard>
+        </section>
 
         <ReportStudentDialog
           open={Boolean(reportTarget)}
@@ -312,22 +334,23 @@ export default function ServiceManagerDashboard() {
           contextLabel="service request"
         />
 
-      <Dialog open={confirmation.open} onOpenChange={(open) => setConfirmation((c) => ({ ...c, open }))}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Update Confirmed</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground">{confirmation.message}</p>
-          </div>
-          <DialogFooter>
-            <button onClick={() => setConfirmation({ open: false, message: "" })} className="px-4 py-2 rounded bg-primary text-primary-foreground">
-              OK
-            </button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        <Dialog open={confirmation.open} onOpenChange={(open) => setConfirmation((c) => ({ ...c, open }))}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Update Confirmed</DialogTitle>
+            </DialogHeader>
+            <div className="py-4">
+              <p className="text-sm text-muted-foreground">{confirmation.message}</p>
+            </div>
+            <DialogFooter>
+              <button onClick={() => setConfirmation({ open: false, message: "" })} className="px-4 py-2 rounded bg-primary text-primary-foreground">
+                OK
+              </button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </DashboardLayout>
   );
 }
+

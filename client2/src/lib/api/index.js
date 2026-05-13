@@ -80,6 +80,13 @@ export async function updateComplaintStatus(_token, complaintId, payload) {
   });
 }
 
+export async function reopenComplaint(_token, complaintId, payload = {}) {
+  return apiRequest(`/complaints/${complaintId}/reopen`, {
+    method: "PATCH",
+    body: JSON.stringify(payload),
+  });
+}
+
 export async function updateGrievanceStatus(_token, complaintId, payload) {
   return apiRequest(`/complaints/${complaintId}/grievance-status`, {
     method: "PATCH",

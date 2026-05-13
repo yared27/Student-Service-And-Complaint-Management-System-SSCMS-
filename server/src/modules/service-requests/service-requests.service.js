@@ -69,6 +69,9 @@ async function notifyUser(prisma, userId, type, title, message, extra = {}) {
       type,
       title,
       message,
+      route: extra.route || null,
+      entityType: extra.entityType || null,
+      entityId: extra.entityId || null,
     },
   });
 }
@@ -604,9 +607,6 @@ export function createServiceRequestsService({ prisma }) {
         return { status: 403, body: { message: "Only service managers or admins can finalize requests." } };
       }
 
-      if (status === "REJECTED" && !note) {
-        return { status: 400, body: { message: "A rejection reason is required." } };
-      }
     }
 
     const now = new Date();
@@ -655,24 +655,8 @@ export function createServiceRequestsService({ prisma }) {
       );
     }
 
-    // Notify student when their request is taken in progress
-    if (updated.status === "IN_PROGRESS" && existing.status !== "IN_PROGRESS") {
-      await notifyUser(
-        prisma,
-        updated.createdById,
-        "SERVICE_REQUEST",
-        "Your request is being handled",
-        `Your service request "${updated.title}" is now being handled.`,
-        {
-          route: `/student/submission/${updated.id}`,
-          entityType: "SERVICE_REQUEST",
-          entityId: updated.id,
-        },
-      );
-    }
-
-    // Notify student when completed or rejected
-    if (updated.status === "COMPLETED") {
+    // Notify student only when a manager finalizes the request
+    if (updated.status === "COMPLETED" && ["SERVICE_MANAGER", "ADMIN"].includes(role)) {
       await notifyUser(
         prisma,
         updated.createdById,
@@ -689,7 +673,7 @@ export function createServiceRequestsService({ prisma }) {
       );
     }
 
-    if (updated.status === "REJECTED") {
+    if (updated.status === "REJECTED" && ["SERVICE_MANAGER", "ADMIN"].includes(role)) {
       await notifyUser(
         prisma,
         updated.createdById,

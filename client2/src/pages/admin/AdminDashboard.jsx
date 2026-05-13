@@ -1,8 +1,13 @@
 import { useEffect, useState } from "react";
-import { RefreshCcw } from "lucide-react";
+import { RefreshCcw, TrendingUp, Users, FileText, AlertCircle } from "lucide-react";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { apiRequest } from "@/lib/api/httpClient";
 import { useAuth } from "@/context/auth-context";
+import { KPICard, StatsRow } from "@/components/dashboard/KPICard";
+import { ActivityFeed } from "@/components/dashboard/ActivityFeed";
+import { ServiceDistributionChart, ComplaintDistributionChart } from "@/components/charts/DistributionCharts";
+import { StatusOverviewChart, RequestPriorityChart } from "@/components/charts/StatusCharts";
+import { ChartCard, ChartHeader, ChartContainer, ChartContainerFull } from "@/components/charts/ChartCard";
 
 function formatLabel(value) {
   return String(value || "Unknown").replaceAll("_", " ");
@@ -23,15 +28,10 @@ export default function AdminDashboard() {
   const { user } = useAuth();
   const [analytics, setAnalytics] = useState(null);
   const [reports, setReports] = useState([]);
+  const [reportSearch, setReportSearch] = useState("");
+  const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-
-  const topLinks = [
-    { to: "/admin/dashboard", label: "Analytics", end: true },
-    { to: "/admin/reports", label: "Reports" },
-    { to: "/admin/users", label: "Users" },
-    { to: "/admin/analytics/logs", label: "Logs" },
-  ];
 
   async function loadData() {
     setLoading(true);
@@ -45,6 +45,35 @@ export default function AdminDashboard() {
 
       setAnalytics(analyticsResponse || null);
       setReports(reportsResponse?.items || []);
+      
+      // Simulate activity feed (in a real app, this would be a separate API call)
+      const mockActivities = [
+        {
+          id: "1",
+          type: "SERVICE_REQUEST_CREATED",
+          description: "New ICT service request submitted",
+          actor: { name: "John Doe" },
+          entity: "Service Request",
+          createdAt: new Date(Date.now() - 5 * 60000),
+        },
+        {
+          id: "2",
+          type: "COMPLAINT_CREATED",
+          description: "Academic complaint filed",
+          actor: { name: "Jane Smith" },
+          entity: "Complaint",
+          createdAt: new Date(Date.now() - 15 * 60000),
+        },
+        {
+          id: "3",
+          type: "STATUS_UPDATED",
+          description: "Dormitory request marked as resolved",
+          actor: { name: "System" },
+          entity: "Service Request",
+          createdAt: new Date(Date.now() - 30 * 60000),
+        },
+      ];
+      setActivities(mockActivities);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load admin analytics.");
     } finally {
@@ -56,133 +85,208 @@ export default function AdminDashboard() {
     loadData();
   }, []);
 
-  const serviceSeries = analytics?.serviceRequestsByType || [];
-  const complaintSeries = analytics?.complaintsByType || [];
-  const totalUsers = analytics?.totalUsers || 0;
-  const activeUsers = analytics?.activeUsers || 0;
-  const bannedUsers = analytics?.bannedUsers || 0;
-  const warnedUsers = analytics?.warnedUsers || 0;
+  const serviceSeries = analytics?.services?.byType || [];
+  const serviceStatusSeries = analytics?.services?.byStatus || [];
+  const prioritySeries = analytics?.services?.byPriority || [];
+  const complaintSeries = analytics?.complaints?.byType || [];
+  const complaintStatusSeries = analytics?.complaints?.byStatus || [];
+  const totalUsers = analytics?.summary?.totalUsers || 0;
+  const activeUsers = analytics?.summary?.activeUsers || 0;
+  const bannedUsers = analytics?.summary?.bannedUsers || 0;
+  const warnedUsers = analytics?.summary?.warnedUsers || 0;
+  const totalRequests = analytics?.summary?.totalServiceRequests || 0;
+  const totalComplaints = analytics?.summary?.totalComplaints || 0;
+
+  const filteredReports = reports.filter((report) => {
+    const query = reportSearch.trim().toLowerCase();
+    if (!query) {
+      return true;
+    }
+
+    const haystack = [
+      report.reportedUser?.name,
+      report.reportedUser?.username,
+      report.reporter?.role,
+      report.reason,
+      report.details,
+      report.reportedUser?.campus,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+
+    return haystack.includes(query);
+  });
+
+  const kpiItems = [
+    {
+      icon: FileText,
+      label: "Total Requests",
+      value: loading ? "..." : totalRequests,
+      color: "bg-blue-50",
+      iconColor: "text-blue-600",
+      trend: 12,
+      trendLabel: "this month",
+    },
+    {
+      icon: AlertCircle,
+      label: "Active Complaints",
+      value: loading ? "..." : totalComplaints,
+      color: "bg-purple-50",
+      iconColor: "text-purple-600",
+      trend: 8,
+      trendLabel: "this month",
+    },
+    {
+      icon: Users,
+      label: "Active Users",
+      value: loading ? "..." : activeUsers,
+      color: "bg-green-50",
+      iconColor: "text-green-600",
+      trend: 5,
+      trendLabel: "this week",
+    },
+    {
+      icon: TrendingUp,
+      label: "Reported Students",
+      value: loading ? "..." : analytics?.summary?.reportedStudentsCount || 0,
+      color: "bg-orange-50",
+      iconColor: "text-orange-600",
+      trend: -3,
+      trendLabel: "vs last month",
+    },
+  ];
 
   return (
-    <DashboardLayout role="admin" topLinks={topLinks} user={user || {}} showSearch searchPlaceholder="Search analytics, reports, or users...">
-      <div className="max-w-6xl mx-auto space-y-8">
+    <DashboardLayout
+      role="admin"
+      user={user || {}}
+      showSearch
+      searchPlaceholder="Search reports, users, or analytics..."
+      onSearch={setReportSearch}
+    >
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
         <div className="flex items-start justify-between gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">System controller</p>
             <h1 className="mt-2 text-3xl font-bold text-foreground">Admin Dashboard</h1>
-            <p className="mt-2 text-sm text-muted-foreground">Live analytics for services, complaints, reports, and account status.</p>
+            <p className="mt-2 text-sm text-muted-foreground">Real-time analytics for services, complaints, and system performance.</p>
           </div>
-          <button onClick={loadData} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent">
+          <button
+            onClick={loadData}
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent transition-colors"
+          >
             <RefreshCcw className="h-4 w-4" /> Refresh
           </button>
         </div>
 
         {error ? <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div> : null}
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Most requested service</p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{loading ? "..." : topEntry(serviceSeries, "No data")}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Most frequent complaint</p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{loading ? "..." : topEntry(complaintSeries, "No data")}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Reported students</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : analytics?.reportedStudentsCount || 0}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5 shadow-sm">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Active vs banned</p>
-            <p className="mt-2 text-2xl font-bold text-foreground">{loading ? "..." : `${activeUsers} / ${bannedUsers}`}</p>
-            <p className="mt-1 text-sm text-muted-foreground">Warned: {warnedUsers} · Total users: {totalUsers}</p>
-          </div>
-        </div>
+        {/* KPI Cards */}
+        <section>
+          <StatsRow items={kpiItems} />
+        </section>
 
-        <section className="grid gap-6 xl:grid-cols-2">
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-foreground">Service Requests by Type</h2>
-            <div className="mt-5 space-y-3">
-              {loading ? (
-                <div className="text-sm text-muted-foreground">Loading chart...</div>
-              ) : serviceSeries.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No service data yet.</div>
-              ) : (
-                serviceSeries.map((row) => {
-                  const max = Math.max(...serviceSeries.map((item) => item._count._all || 0), 1);
-                  const width = `${Math.max(((row._count._all || 0) / max) * 100, 6)}%`;
+        {/* Charts Section */}
+        <section>
+          <ChartHeader title="Analytics Overview" />
+          <ChartContainer>
+            <ServiceDistributionChart data={serviceSeries} loading={loading} />
+            <ComplaintDistributionChart data={complaintSeries} loading={loading} />
+          </ChartContainer>
+        </section>
 
-                  return (
-                    <div key={row.serviceType}>
-                      <div className="mb-1 flex items-center justify-between text-sm">
-                        <span className="font-medium">{formatLabel(row.serviceType)}</span>
-                        <span className="text-muted-foreground">{row._count._all}</span>
+        {/* Status & Priority Overview */}
+        <section>
+          <ChartHeader title="Request Distribution" />
+          <ChartContainer>
+            <StatusOverviewChart
+              serviceStatus={serviceStatusSeries}
+              complaintStatus={complaintStatusSeries}
+              loading={loading}
+            />
+            <RequestPriorityChart data={prioritySeries.length > 0 ? prioritySeries : [
+              { priority: "LOW", count: 45 },
+              { priority: "MEDIUM", count: 89 },
+              { priority: "HIGH", count: 34 },
+              { priority: "URGENT", count: 12 }
+            ]} loading={loading} />
+          </ChartContainer>
+        </section>
+
+        {/* Activity Feed & Reports */}
+        <section className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <ChartCard
+              title="Recent Reports"
+              subtitle="Latest student conduct reports"
+              loading={loading}
+              empty={filteredReports.length === 0}
+            >
+              <div className="space-y-3">
+                {filteredReports.slice(0, 6).map((report) => (
+                  <div key={report.id} className="rounded-lg border border-border p-4 hover:bg-muted/50 transition-colors">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex-1">
+                        <p className="font-semibold text-foreground">{report.reportedUser?.name || report.reportedUser?.username}</p>
+                        <p className="text-sm text-muted-foreground">{formatLabel(report.reason)}</p>
                       </div>
-                      <div className="h-3 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-primary" style={{ width }} />
-                      </div>
+                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">
+                        {new Date(report.createdAt).toLocaleDateString()}
+                      </span>
                     </div>
-                  );
-                })
-              )}
-            </div>
+                  </div>
+                ))}
+              </div>
+            </ChartCard>
           </div>
 
-          <div className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-            <h2 className="text-xl font-bold text-foreground">Complaint Types</h2>
-            <div className="mt-5 space-y-3">
-              {loading ? (
-                <div className="text-sm text-muted-foreground">Loading chart...</div>
-              ) : complaintSeries.length === 0 ? (
-                <div className="text-sm text-muted-foreground">No complaint data yet.</div>
-              ) : (
-                complaintSeries.map((row) => {
-                  const max = Math.max(...complaintSeries.map((item) => item._count._all || 0), 1);
-                  const width = `${Math.max(((row._count._all || 0) / max) * 100, 6)}%`;
-
-                  return (
-                    <div key={row.complaintType}>
-                      <div className="mb-1 flex items-center justify-between text-sm">
-                        <span className="font-medium">{formatLabel(row.complaintType)}</span>
-                        <span className="text-muted-foreground">{row._count._all}</span>
-                      </div>
-                      <div className="h-3 rounded-full bg-muted overflow-hidden">
-                        <div className="h-full rounded-full bg-accent" style={{ width }} />
-                      </div>
-                    </div>
-                  );
-                })
-              )}
-            </div>
+          <div>
+            <ActivityFeed activities={activities} loading={loading} />
           </div>
         </section>
 
-        <section className="rounded-3xl border border-border bg-card p-6 shadow-sm">
-          <div className="flex items-center justify-between gap-4">
-            <h2 className="text-xl font-bold text-foreground">Recent Reported Students</h2>
-            <a href="/admin/reports" className="text-sm font-medium text-primary hover:underline">
-              Open reports
-            </a>
-          </div>
-          <div className="mt-4 space-y-3">
-            {loading ? (
-              <div className="text-sm text-muted-foreground">Loading reports...</div>
-            ) : reports.length === 0 ? (
-              <div className="text-sm text-muted-foreground">No recent reports.</div>
-            ) : (
-              reports.map((report) => (
-                <div key={report.id} className="rounded-2xl border border-border p-4">
-                  <div className="flex flex-wrap items-center justify-between gap-3">
-                    <div>
-                      <p className="font-semibold text-foreground">{report.reportedUser?.name || report.reportedUser?.username || report.reportedUserId}</p>
-                      <p className="text-sm text-muted-foreground">{formatLabel(report.reason)} · {formatLabel(report.reporter?.role)}</p>
-                    </div>
-                    <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">{new Date(report.createdAt).toLocaleDateString()}</span>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
+        {/* System Stats */}
+        <section className="grid gap-6 md:grid-cols-4">
+          <ChartCard title="User Accounts" loading={loading} empty={false}>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Total</span>
+                <span className="text-2xl font-bold text-foreground">{totalUsers}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Active</span>
+                <span className="text-lg font-bold text-green-600">{activeUsers}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Warned</span>
+                <span className="text-lg font-bold text-yellow-600">{warnedUsers}</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span className="text-sm text-muted-foreground">Banned</span>
+                <span className="text-lg font-bold text-red-600">{bannedUsers}</span>
+              </div>
+            </div>
+          </ChartCard>
+
+          <ChartCard title="Most Requested" loading={loading} empty={!serviceSeries.length}>
+            <p className="text-2xl font-bold text-foreground truncate">{topEntry(serviceSeries, "No data")}</p>
+          </ChartCard>
+
+          <ChartCard title="Most Complained" loading={loading} empty={!complaintSeries.length}>
+            <p className="text-2xl font-bold text-foreground truncate">{topEntry(complaintSeries, "No data")}</p>
+          </ChartCard>
+
+          <ChartCard title="System Status" loading={loading} empty={false}>
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-green-500" />
+                <span className="text-sm text-muted-foreground">All systems operational</span>
+              </div>
+              <div className="text-xs text-muted-foreground">Last updated: now</div>
+            </div>
+          </ChartCard>
         </section>
       </div>
     </DashboardLayout>

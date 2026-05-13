@@ -8,9 +8,9 @@ export function createNotificationsService({ prisma }) {
       message: item.message,
       isRead: item.isRead,
       createdAt: item.createdAt,
-      route: null,
-      entityType: null,
-      entityId: null,
+      route: item.route || null,
+      entityType: item.entityType || null,
+      entityId: item.entityId || null,
     };
   }
 
@@ -46,6 +46,9 @@ export function createNotificationsService({ prisma }) {
           type: true,
           title: true,
           message: true,
+          route: true,
+          entityType: true,
+          entityId: true,
           isRead: true,
           createdAt: true,
         },
@@ -76,6 +79,9 @@ export function createNotificationsService({ prisma }) {
         type: true,
         title: true,
         message: true,
+        route: true,
+        entityType: true,
+        entityId: true,
         isRead: true,
         createdAt: true,
       },

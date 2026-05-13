@@ -1,18 +1,19 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Bell, LogOut, Search, LayoutDashboard } from "lucide-react";
+import { Bell, LogOut, Search, LayoutDashboard, Settings, UserRound } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api/httpClient";
 
-const NOTIFICATION_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager", "service_manager"]);
+const NOTIFICATION_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager", "service_manager", "investigator"]);
 const SUPPORT_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager"]);
 
 const ROLE_NAV = {
   student: [
     { to: "/student/dashboard", label: "Dashboard", end: true },
+    { to: "/student/complaints", label: "My Complaints" },
     { to: "/student/requests", label: "My Requests" },
     { to: "/student/request/new", label: "New Request" },
     { to: "/student/complaint/new", label: "New Complaint" },
@@ -80,6 +81,7 @@ export default function DashboardLayout({
   topLinks = [],
   showSearch = false,
   searchPlaceholder = "Search...",
+  onSearch = null,
   title,
   subtitle,
   action,
@@ -91,6 +93,12 @@ export default function DashboardLayout({
   const canUseNotifications = NOTIFICATION_ROLES.has(navRole);
   const { name, meta } = getUserSummary(authUser || user);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const sidebarUtilityLinks = [
+    { to: "/profile", label: "Profile", icon: UserRound },
+    { to: "/settings", label: "Settings", icon: Settings },
+  ];
 
   async function refreshUnreadCount() {
     if (!canUseNotifications) {
@@ -129,6 +137,37 @@ export default function DashboardLayout({
     navigate("/login", { replace: true });
   };
 
+  const handleSearchSubmit = (event) => {
+    event.preventDefault();
+
+    const query = searchQuery.trim().toLowerCase();
+    if (!query) {
+      return;
+    }
+
+    if (typeof onSearch === "function") {
+      onSearch(query);
+      setSearchQuery("");
+      return;
+    }
+
+    const searchableItems = [
+      ...navItems,
+      ...sidebarUtilityLinks,
+    ];
+
+    const matchedItem = searchableItems.find((item) => {
+      const label = String(item.label || "").toLowerCase();
+      const path = String(item.to || "").toLowerCase();
+      return label.includes(query) || path.includes(query);
+    });
+
+    if (matchedItem) {
+      navigate(matchedItem.to);
+      setSearchQuery("");
+    }
+  };
+
   return (
     <div className="min-h-screen flex bg-soft">
       <aside className="hidden lg:flex w-72 flex-col bg-sidebar text-sidebar-foreground border-r border-sidebar-border">
@@ -156,14 +195,32 @@ export default function DashboardLayout({
           ))}
         </nav>
 
-        <div className="p-4 border-t border-sidebar-border space-y-1">
-          <button
-            onClick={handleSignOut}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-sm text-sidebar-foreground/80 hover:bg-sidebar-accent transition-smooth"
-          >
-            <LogOut className="w-4 h-4" /> Sign out
-          </button>
+        <div className="px-4 pb-4 pt-2 border-t border-sidebar-border space-y-1">
+          <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-sidebar-foreground/50">
+            Account
+          </p>
+          {sidebarUtilityLinks.map((item) => {
+            const Icon = item.icon;
+
+            return (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-smooth ${
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-card"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`
+                }
+              >
+                <Icon className="w-4 h-4" />
+                {item.label}
+              </NavLink>
+            );
+          })}
         </div>
+
       </aside>
 
       <main className="flex-1 flex flex-col min-w-0">
@@ -174,12 +231,20 @@ export default function DashboardLayout({
             </div>
 
             {showSearch ? (
-              <div className="hidden md:flex items-center gap-2 flex-1 max-w-md">
+              <form onSubmit={handleSearchSubmit} className="hidden md:flex items-center gap-2 flex-1 max-w-md">
                 <div className="relative w-full">
                   <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                  <Input className="pl-9 h-10 bg-secondary border-0" placeholder={searchPlaceholder} />
+                  <Input
+                    value={searchQuery}
+                    onChange={(event) => setSearchQuery(event.target.value)}
+                    className="pl-9 h-10 bg-secondary border-0"
+                    placeholder={searchPlaceholder}
+                  />
                 </div>
-              </div>
+                <Button type="submit" variant="secondary" size="sm">
+                  Search
+                </Button>
+              </form>
             ) : (
               <div className="flex-1" />
             )}
@@ -195,11 +260,9 @@ export default function DashboardLayout({
                   ) : null}
                 </Button>
               ) : null}
-              <Button variant="ghost" size="sm" onClick={() => navigate("/profile")} className="hidden sm:inline-flex">
-                Profile
-              </Button>
-              <Button variant="ghost" size="sm" onClick={() => navigate("/settings")} className="hidden md:inline-flex">
-                Settings
+              <Button variant="ghost" size="sm" onClick={handleSignOut} className="inline-flex items-center gap-2 text-destructive hover:text-destructive">
+                <LogOut className="w-4 h-4" />
+                <span className="hidden sm:inline">Sign out</span>
               </Button>
               <div className="flex items-center gap-3 pl-3 border-l border-border">
                 <div className="text-right hidden sm:block">
@@ -214,27 +277,8 @@ export default function DashboardLayout({
           </div>
         </header>
 
-        {(title || subtitle || action || topLinks.length > 0) ? (
+        {(title || subtitle || action) ? (
           <div className="px-6 lg:px-10 pt-6">
-            {topLinks.length > 0 ? (
-              <div className="mb-6 flex flex-wrap gap-2">
-                {topLinks.map((link) => (
-                  <NavLink
-                    key={link.to}
-                    to={link.to}
-                    end={link.end}
-                    className={({ isActive }) =>
-                      `rounded-full px-4 py-2 text-sm font-medium transition-smooth ${
-                        isActive ? "bg-primary text-primary-foreground" : "bg-background text-muted-foreground hover:text-foreground"
-                      }`
-                    }
-                  >
-                    {link.label}
-                  </NavLink>
-                ))}
-              </div>
-            ) : null}
-
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div>
                 {title ? <h1 className="font-display text-3xl md:text-4xl font-bold leading-tight">{title}</h1> : null}

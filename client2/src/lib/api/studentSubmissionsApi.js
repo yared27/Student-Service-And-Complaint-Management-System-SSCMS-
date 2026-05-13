@@ -40,6 +40,17 @@ function toComplaintItem(item) {
         .filter((attachment) => attachment.url)
     : [];
 
+  // Extract the latest final note from activity logs (from RESOLVED/REJECTED status updates)
+  let finalNote = null;
+  if (Array.isArray(item.activityLogs)) {
+    const closureLog = item.activityLogs.find((log) =>
+      ["RESOLVED", "REJECTED"].some((status) => log.description?.includes(status))
+    );
+    if (closureLog?.metadata?.note) {
+      finalNote = closureLog.metadata.note;
+    }
+  }
+
   return {
     id: item.id,
     title: item.title,
@@ -53,10 +64,26 @@ function toComplaintItem(item) {
     grievanceStatusRaw: String(item.grievanceStatus || "PHASE_1").toUpperCase(),
     date: formatDate(item.createdAt),
     createdAt: item.createdAt,
+    canReopenUntil: item.canReopenUntil || null,
+    isReopened: item.isReopened || false,
+    reopenedAt: item.reopenedAt || null,
+    finalNote: finalNote,
+    createdBy: item.createdBy || null,
   };
 }
 
 function toServiceRequestItem(item) {
+  // Extract the latest final note from activity logs (from COMPLETED/REJECTED status updates)
+  let finalNote = null;
+  if (Array.isArray(item.activityLogs)) {
+    const closureLog = item.activityLogs.find((log) =>
+      ["COMPLETED", "REJECTED"].some((status) => log.description?.includes(status))
+    );
+    if (closureLog?.metadata?.note) {
+      finalNote = closureLog.metadata.note;
+    }
+  }
+
   return {
     id: item.id,
     title: item.title,
@@ -73,6 +100,7 @@ function toServiceRequestItem(item) {
     assignedServiceManager: item.assignedServiceManager || null,
     canReopenUntil: item.canReopenUntil || null,
     completedAt: item.completedAt || null,
+    finalNote: finalNote,
   };
 }
 

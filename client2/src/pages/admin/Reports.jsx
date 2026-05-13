@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { toast } from "sonner";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,8 @@ export default function AdminReportsPage() {
   const [loading, setLoading] = useState(true);
   const [savingId, setSavingId] = useState("");
   const [reports, setReports] = useState([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const pageSize = 8;
 
   const topLinks = [
     { to: "/admin/dashboard", label: "Analytics" },
@@ -42,6 +44,19 @@ export default function AdminReportsPage() {
   useEffect(() => {
     loadReports();
   }, []);
+
+  const totalPages = Math.max(1, Math.ceil(reports.length / pageSize));
+
+  const paginatedReports = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return reports.slice(start, start + pageSize);
+  }, [reports, currentPage]);
+
+  useEffect(() => {
+    if (currentPage > totalPages) {
+      setCurrentPage(totalPages);
+    }
+  }, [currentPage, totalPages]);
 
   async function moderate(reportId, actionTaken) {
     setSavingId(reportId);
@@ -76,7 +91,7 @@ export default function AdminReportsPage() {
             <div className="py-8 text-sm text-muted-foreground">No reports found.</div>
           ) : (
             <div className="space-y-3">
-              {reports.map((report) => (
+              {paginatedReports.map((report) => (
                 <div key={report.id} className="rounded-2xl border border-border p-4">
                   <div className="flex flex-wrap items-start justify-between gap-4">
                     <div className="space-y-1">
@@ -112,6 +127,35 @@ export default function AdminReportsPage() {
               ))}
             </div>
           )}
+
+          {reports.length > 0 ? (
+            <div className="flex flex-col gap-3 border-t border-border pt-4 sm:flex-row sm:items-center sm:justify-between">
+              <p className="text-sm text-muted-foreground">
+                Showing {(currentPage - 1) * pageSize + 1}-{Math.min(currentPage * pageSize, reports.length)} of {reports.length} reports
+              </p>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                  disabled={currentPage === 1}
+                >
+                  Previous
+                </Button>
+                <span className="text-sm text-muted-foreground">
+                  Page {currentPage} of {totalPages}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                  disabled={currentPage === totalPages}
+                >
+                  Next
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </section>
       </div>
     </DashboardLayout>

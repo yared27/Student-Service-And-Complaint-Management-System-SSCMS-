@@ -147,5 +147,12 @@ export function createComplaintsRouter({ prisma, auth }) {
     controller.updateGrievanceStatus,
   );
 
+  router.patch(
+    "/:id/reopen",
+    auth.authenticate,
+    auth.authorizeRoles("STUDENT"),
+    controller.reopenComplaint,
+  );
+
   return router;
 }

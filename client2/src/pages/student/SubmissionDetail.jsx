@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { fetchSubmissionDetail } from "@/lib/api/studentSubmissionsApi";
 import { useAuth } from "@/context/auth-context";
-import { updateServiceRequestStatus } from "@/lib/api";
+import { updateServiceRequestStatus, reopenComplaint } from "@/lib/api";
 import { toast } from "sonner";
 
 const grievancePhases = ["PHASE_1", "PHASE_2", "PHASE_3"];
@@ -310,26 +310,40 @@ const SubmissionDetail = () => {
                   <button className="w-full py-5 bg-[#002B5B] text-white rounded-2xl font-black text-[11px] uppercase tracking-[0.2em] shadow-lg hover:shadow-blue-900/20 hover:-translate-y-0.5 transition-all">
                     Download Acknowledgment
                   </button>
-                  {data.statusRaw === "COMPLETED" && data.canReopenUntil && user?.id === data.createdBy?.id ? (
+
+                  {/* FINAL NOTE - Show for closed requests/complaints */}
+                  {["COMPLETED", "REJECTED", "RESOLVED"].includes(data.statusRaw) && data.finalNote ? (
+                    <div className="mt-4 p-4 bg-slate-50 border border-slate-200 rounded-2xl">
+                      <p className="text-[9px] font-black text-slate-400 uppercase mb-2">Final Note from Manager</p>
+                      <p className="text-sm text-slate-700 italic">{data.finalNote}</p>
+                    </div>
+                  ) : null}
+
+                  {/* REOPEN BUTTON */}
+                  {["COMPLETED", "RESOLVED", "REJECTED"].includes(data.statusRaw) && data.canReopenUntil && user?.id === data.createdBy?.id ? (
                     <button
                       onClick={async () => {
                         if (!token) {
-                          toast.error('You must be logged in to reopen requests.');
+                          toast.error('You must be logged in to reopen.');
                           return;
                         }
 
                         try {
-                          await updateServiceRequestStatus(token, data.id, { reopen: true });
-                          toast.success('Request reopened.');
+                          if (data.type === "Service Request") {
+                            await updateServiceRequestStatus(token, data.id, { reopen: true });
+                          } else {
+                            await reopenComplaint(token, data.id, {});
+                          }
+                          toast.success(`${data.type} reopened.`);
                           const refreshed = await fetchSubmissionDetail(id);
                           setData(refreshed);
                         } catch (err) {
-                          toast.error(err?.message || 'Failed to reopen request.');
+                          toast.error(err?.message || `Failed to reopen ${data.type.toLowerCase()}.`);
                         }
                       }}
                       className="w-full mt-3 py-3 bg-orange-600 text-white rounded-2xl font-bold text-sm uppercase"
                     >
-                      Reopen this request
+                      Reopen this {data.type === "Service Request" ? "request" : "complaint"}
                     </button>
                   ) : null}
                 </div>

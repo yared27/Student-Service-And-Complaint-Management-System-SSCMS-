@@ -1,13 +1,52 @@
 import { useEffect, useState } from "react";
-import { ArrowRight, RefreshCcw, Send } from "lucide-react";
+import { AlertCircle, CheckCircle, Clock, RefreshCcw, TrendingUp, Users } from "lucide-react";
 import { toast } from "sonner";
 import { useNavigate } from "react-router-dom";
 import DashboardLayout from "@/components/layout/DashboardLayout";
 import { assignComplaint, listComplaints, listUsers, updateComplaintStatus } from "@/lib/api";
 import { useAuth } from "@/context/auth-context";
 import ReportStudentDialog from "@/components/ReportStudentDialog";
+import { KPICard, StatsRow, ActivityTimeline } from "@/components/ui";
+import { ChartCard } from "@/components/charts/ChartCard";
 
 const statusOptions = ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "RESOLVED", "REJECTED"];
+
+const COMPLAINT_TYPE_ALIASES = {
+  "FOOD SERVICE": "FOOD_SERVICE",
+  "FOOD SERVICE BUREAU": "FOOD_SERVICE",
+  FOODSERVICE: "FOOD_SERVICE",
+  FOOD_SERVICE: "FOOD_SERVICE",
+  ACADEMIC: "ACADEMIC",
+  "ACADEMIC BUREAU": "ACADEMIC",
+  DISCIPLINE: "DISCIPLINE",
+  "DISCIPLINE BUREAU": "DISCIPLINE",
+  GENERAL: "GENERAL_SERVICE",
+  "GENERAL SERVICE": "GENERAL_SERVICE",
+  "GENERAL SERVICE BUREAU": "GENERAL_SERVICE",
+  HEALTH: "HEALTH_CASE",
+  "HEALTH CASE": "HEALTH_CASE",
+  "HEALTH CASE BUREAU": "HEALTH_CASE",
+  DISABILITY: "DISABILITY_CASE",
+  "DISABILITY CASE": "DISABILITY_CASE",
+  "DISABILITY CASE BUREAU": "DISABILITY_CASE",
+  WOMEN: "WOMEN_CASE",
+  "WOMEN CASE": "WOMEN_CASE",
+  "WOMEN CASE BUREAU": "WOMEN_CASE",
+  SPORTS: "SPORTS",
+  "SPORTS BUREAU": "SPORTS",
+};
+
+function normalizeComplaintTypeScope(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[-/]+/g, " ")
+    .replace(/\s+BUREAU\s*$/, "")
+    .replace(/\s+MANAGER\s*$/, "")
+    .replace(/\s+/g, " ");
+
+  return COMPLAINT_TYPE_ALIASES[normalized] || normalized.replace(/\s/g, "_");
+}
 
 export default function ComplaintManagerDashboard() {
   const navigate = useNavigate();
@@ -18,12 +57,19 @@ export default function ComplaintManagerDashboard() {
   const [error, setError] = useState("");
   const [selectedAssignee, setSelectedAssignee] = useState({});
   const [selectedStatus, setSelectedStatus] = useState({});
-  const [complaintTypeFilter, setComplaintTypeFilter] = useState("ALL");
+  const [closureNotes, setClosureNotes] = useState({});
   const [reportTarget, setReportTarget] = useState(null);
+  const [activities, setActivities] = useState([]);
 
-  const topLinks = [
-    { to: "/complaint-manager/complaints", label: "Complaints", end: true },
-  ];
+  const complaintScope = normalizeComplaintTypeScope(user?.complaintType || user?.department || user?.category);
+
+  function isInComplaintScope(item) {
+    if (!complaintScope) {
+      return true;
+    }
+
+    return String(item?.complaintType || "").trim().toUpperCase() === complaintScope;
+  }
 
   async function loadData() {
     if (!token) {
@@ -39,8 +85,25 @@ export default function ComplaintManagerDashboard() {
         listUsers(token, { role: "INVESTIGATOR", limit: 100 }),
       ]);
 
-      setComplaints(complaintResponse.items || []);
+      const complaintsData = (complaintResponse.items || []).filter(isInComplaintScope);
+      setComplaints(complaintsData);
       setReviewers(reviewerResponse.items || []);
+
+      const activityFeed = complaintsData
+        .flatMap((complaint) =>
+          (complaint.activityLogs || []).map((log) => ({
+            id: log.id,
+            type: log.action,
+            description: log.description || `${complaint.complaintType} complaint - ${complaint.title}`,
+            actor: log.actor || { name: complaint.assignedTo?.name || "System", role: "INVESTIGATOR" },
+            entity: "Complaint",
+            createdAt: new Date(log.createdAt),
+          })),
+        )
+        .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+        .slice(0, 3);
+
+      setActivities(activityFeed);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load complaints.");
     } finally {
@@ -50,7 +113,7 @@ export default function ComplaintManagerDashboard() {
 
   useEffect(() => {
     loadData();
-  }, [token]);
+  }, [token, complaintScope]);
 
   const updateAssignment = async (complaintId) => {
     const assignedToId = selectedAssignee[complaintId];
@@ -67,154 +130,214 @@ export default function ComplaintManagerDashboard() {
     }
   };
 
-  const visibleComplaints =
-    complaintTypeFilter === "ALL"
-      ? complaints
-      : complaints.filter((item) => String(item.complaintType || "").toUpperCase() === complaintTypeFilter);
-
-  const complaintTypeOptions = Array.from(
-    new Set(complaints.map((item) => String(item.complaintType || "").toUpperCase()).filter(Boolean)),
-  ).sort();
-
   const updateStatus = async (complaintId) => {
     const status = selectedStatus[complaintId];
-    if (!token || !status) {
-      return;
-    }
+    if (!token || !status) return;
+    const note = String(closureNotes[complaintId] || "").trim();
 
     try {
-      const response = await updateComplaintStatus(token, complaintId, { status });
-      toast.success(response?.message || "Complaint updated successfully.");
+      const response = await updateComplaintStatus(token, complaintId, { status, note });
+      toast.success(response?.message || "Complaint status updated.");
+      setClosureNotes((current) => ({ ...current, [complaintId]: "" }));
       await loadData();
-    } catch (updateError) {
-      toast.error(updateError instanceof Error ? updateError.message : "Failed to update complaint.");
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update complaint status.");
     }
   };
 
+  const visibleComplaints = complaints;
+
+  const pendingComplaints = complaints.filter((c) => !["RESOLVED", "REJECTED"].includes(c.status));
+  const resolvedComplaints = complaints.filter((c) => c.status === "RESOLVED");
+  const inProgressComplaints = complaints.filter((c) => c.status === "IN_PROGRESS");
+
+  const kpiItems = [
+    {
+      icon: AlertCircle,
+      label: "Total Complaints",
+      value: loading ? "..." : complaints.length,
+      color: "bg-purple-50",
+      iconColor: "text-purple-600",
+      trend: 8,
+      trendLabel: "this month",
+    },
+    {
+      icon: Clock,
+      label: "Under Review",
+      value: loading ? "..." : inProgressComplaints.length,
+      color: "bg-blue-50",
+      iconColor: "text-blue-600",
+      trend: 3,
+      trendLabel: "in progress",
+    },
+    {
+      icon: CheckCircle,
+      label: "Resolved",
+      value: loading ? "..." : resolvedComplaints.length,
+      color: "bg-green-50",
+      iconColor: "text-green-600",
+      trend: 12,
+      trendLabel: "this month",
+    },
+    {
+      icon: Users,
+      label: "Investigators",
+      value: loading ? "..." : reviewers.length,
+      color: "bg-orange-50",
+      iconColor: "text-orange-600",
+      trend: 0,
+      trendLabel: "assigned",
+    },
+  ];
+
   return (
-    <DashboardLayout role="complaint_manager" topLinks={topLinks} user={user || {}}>
-      <div className="max-w-6xl mx-auto space-y-8">
+    <DashboardLayout role="complaint_manager" user={user || {}}>
+      <div className="max-w-7xl mx-auto space-y-8">
+        {/* Header */}
         <div className="flex items-start justify-between gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Complaint workflow</p>
             <h1 className="mt-2 text-3xl font-bold text-foreground">Complaint Manager Dashboard</h1>
             <p className="mt-2 text-sm text-muted-foreground">Review complaints, assign investigators, and drive the complaint lifecycle.</p>
           </div>
-          <button onClick={loadData} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent">
+          <button onClick={loadData} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent transition-colors">
             <RefreshCcw className="h-4 w-4" /> Refresh
           </button>
         </div>
 
         {error && <div className="rounded-2xl bg-destructive/10 px-4 py-3 text-sm text-destructive">{error}</div>}
 
-        <div className="rounded-2xl border border-border bg-card p-4">
-          <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Filter by complaint type</label>
-          <select
-            value={complaintTypeFilter}
-            onChange={(event) => setComplaintTypeFilter(event.target.value)}
-            className="w-full max-w-xs rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none"
-          >
-            <option value="ALL">All complaint types</option>
-            {complaintTypeOptions.map((type) => (
-              <option key={type} value={type}>
-                {type}
-              </option>
-            ))}
-          </select>
-        </div>
+        {/* KPI Cards */}
+        <section>
+          <StatsRow items={kpiItems} />
+        </section>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Complaints</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : complaints.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Investigators</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : reviewers.length}</p>
-          </div>
-          <div className="rounded-2xl border border-border bg-card p-5">
-            <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Open</p>
-            <p className="mt-2 text-3xl font-bold text-foreground">{loading ? "..." : complaints.filter((item) => !["RESOLVED", "REJECTED"].includes(item.status)).length}</p>
-          </div>
-        </div>
-
-        <div className="space-y-4">
-          {loading ? (
-            <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">Loading complaints...</div>
-          ) : visibleComplaints.length === 0 ? (
-            <div className="rounded-2xl border border-border bg-card p-5 text-sm text-muted-foreground">No complaints found.</div>
-          ) : (
-            visibleComplaints.map((complaint) => (
-              <div key={complaint.id} className="rounded-3xl border border-border bg-card p-5 shadow-sm">
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">{complaint.priority} / {complaint.complaintType || "GENERAL"}</p>
-                    <h2 className="mt-1 text-lg font-bold text-foreground">{complaint.title}</h2>
-                    <p className="mt-2 max-w-3xl text-sm text-muted-foreground">{complaint.description}</p>
+        {/* Bureau Queue + Activity */}
+        <section className="grid gap-6 lg:grid-cols-3">
+          <div className="lg:col-span-2">
+            <ChartCard title="Bureau Queue" subtitle="Complaints routed to your bureau">
+              <div className="space-y-4">
+                <div className="pt-3 border-t border-border">
+                  <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground mb-3">Recent complaints: {visibleComplaints.length}</p>
+                  <div className="space-y-2 max-h-80 overflow-y-auto">
+                    {visibleComplaints.slice(0, 5).map((complaint) => (
+                      <div key={complaint.id} className="rounded-lg border border-border p-3 hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-semibold text-foreground truncate">{complaint.title}</p>
+                            <p className="text-xs text-muted-foreground">{complaint.complaintType}</p>
+                          </div>
+                          <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{complaint.status}</span>
+                        </div>
+                      </div>
+                    ))}
                   </div>
-                  <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground">{complaint.status}</span>
-                </div>
-
-                <div className="mt-4 grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-end">
-                  <div>
-                    <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Assign to investigator</label>
-                    <select
-                      value={selectedAssignee[complaint.id] || complaint.assignedToId || ""}
-                      onChange={(event) => setSelectedAssignee((current) => ({ ...current, [complaint.id]: event.target.value }))}
-                      className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none"
-                    >
-                      <option value="">Select investigator</option>
-                      {reviewers.map((member) => (
-                        <option key={member.id} value={member.id}>
-                          {member.name} ({member.username})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-
-                  <button onClick={() => updateAssignment(complaint.id)} className="inline-flex items-center justify-center gap-2 rounded-2xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent">
-                    Assign <Send className="h-4 w-4" />
-                  </button>
-
-                  <div className="flex gap-2">
-                    <select
-                      value={selectedStatus[complaint.id] || complaint.status}
-                      onChange={(event) => setSelectedStatus((current) => ({ ...current, [complaint.id]: event.target.value }))}
-                      className="rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none"
-                    >
-                      {statusOptions.map((status) => (
-                        <option key={status} value={status}>
-                          {status}
-                        </option>
-                      ))}
-                    </select>
-                    <button onClick={() => updateStatus(complaint.id)} className="inline-flex items-center justify-center gap-2 rounded-2xl bg-primary px-4 py-3 text-sm font-semibold text-primary-foreground">
-                      Update <ArrowRight className="h-4 w-4" />
-                    </button>
-                  </div>
-                </div>
-
-                <div className="mt-3 text-xs text-muted-foreground">
-                  Created by {complaint.createdBy?.name || complaint.createdById} / Assigned to {complaint.assignedTo?.name || "Unassigned"}
-                </div>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <button
-                    onClick={() => navigate(`/complaint-manager/complaints/${complaint.id}`)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
-                  >
-                    Open complaint detail
-                  </button>
-                  <button
-                    onClick={() => setReportTarget(complaint)}
-                    className="inline-flex items-center gap-2 rounded-xl border border-border px-3 py-2 text-xs font-medium hover:bg-accent"
-                  >
-                    Report student
-                  </button>
                 </div>
               </div>
-            ))
-          )}
-        </div>
+            </ChartCard>
+          </div>
+
+          {/* Activity Feed */}
+          <div>
+            <ChartCard title="Recent Activity" subtitle="Department actions" loading={loading}>
+              <ActivityTimeline activities={activities} loading={loading} />
+            </ChartCard>
+          </div>
+        </section>
+
+        {/* Complaints List */}
+        <section>
+          <ChartCard title="All Complaints" subtitle={`Showing ${visibleComplaints.length} complaints`} loading={loading}>
+            <div className="space-y-4 max-h-96 overflow-y-auto">
+              {visibleComplaints.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">No complaints found.</div>
+              ) : (
+                visibleComplaints.map((complaint) => (
+                  <div key={complaint.id} className="rounded-lg border border-border p-4 hover:border-foreground transition-colors">
+                    <div className="flex items-start justify-between gap-4 mb-3">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <p className="font-semibold text-foreground">{complaint.title}</p>
+                          <span className="text-xs font-medium text-muted-foreground">{complaint.complaintType}</span>
+                        </div>
+                        <p className="text-sm text-muted-foreground truncate">{complaint.description}</p>
+                        {(() => {
+                          const latestNote = complaint.activityLogs?.find((log) => String(log.metadata?.note || "").trim());
+                          if (!latestNote) {
+                            return null;
+                          }
+
+                          return (
+                            <div className="mt-3 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                              <span className="font-semibold text-foreground">Latest note:</span> {String(latestNote.metadata?.note || latestNote.description || "")}
+                            </div>
+                          );
+                        })()}
+                      </div>
+                      <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{complaint.status}</span>
+                    </div>
+
+                    <div className="grid gap-2 sm:grid-cols-2">
+                      <select
+                        value={selectedAssignee[complaint.id] || complaint.assignedToId || ""}
+                        onChange={(event) => setSelectedAssignee((current) => ({ ...current, [complaint.id]: event.target.value }))}
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
+                      >
+                        <option value="">Assign investigator...</option>
+                        {reviewers.map((member) => (
+                          <option key={member.id} value={member.id}>
+                            {member.name}{member.department ? ` · ${member.department}` : ""}
+                          </option>
+                        ))}
+                      </select>
+
+                      <div className="flex gap-2">
+                        <select
+                          value={selectedStatus[complaint.id] || complaint.status}
+                          onChange={(event) => setSelectedStatus((current) => ({ ...current, [complaint.id]: event.target.value }))}
+                          className="flex-1 rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
+                        >
+                          {statusOptions.map((status) => (
+                            <option key={status} value={status}>
+                              {status}
+                            </option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => {
+                            updateStatus(complaint.id);
+                            updateAssignment(complaint.id);
+                          }}
+                          className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors"
+                        >
+                          Update
+                        </button>
+                        <button
+                          onClick={() => setReportTarget(complaint)}
+                          className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                        >
+                          Report Student
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                        Final note for closure
+                      </label>
+                      <textarea
+                        value={closureNotes[complaint.id] || ""}
+                        onChange={(event) => setClosureNotes((current) => ({ ...current, [complaint.id]: event.target.value }))}
+                        placeholder="Add the final body used to close this complaint. Required for RESOLVED or REJECTED."
+                        className="min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </ChartCard>
+        </section>
 
         <ReportStudentDialog
           open={Boolean(reportTarget)}
