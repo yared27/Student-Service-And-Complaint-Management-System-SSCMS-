@@ -139,11 +139,11 @@ async function upsertServiceManagerProfile({ userId, serviceType }) {
   });
 }
 
-async function upsertComplaintManagerProfile({ userId, complaintType }) {
+async function upsertComplaintManagerProfile({ userId, complaintType, category }) {
   return prisma.complaintManager.upsert({
     where: { complaintType },
-    update: { userId },
-    create: { userId, complaintType },
+    update: { userId, category: category ?? null },
+    create: { userId, complaintType, category: category ?? null },
   });
 }
 
@@ -166,7 +166,11 @@ async function seedComplaintBureaus(hashedPassword) {
       password: hashedPassword,
     });
 
-    const profile = await upsertComplaintManagerProfile({ userId: manager.id, complaintType: bureau.complaintType });
+    const profile = await upsertComplaintManagerProfile({
+      userId: manager.id,
+      complaintType: bureau.complaintType,
+      category,
+    });
 
     const investigator = await upsertUser({
       username: investigatorUsername,
