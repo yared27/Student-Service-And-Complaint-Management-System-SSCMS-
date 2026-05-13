@@ -1,6 +1,6 @@
 import { createNotificationsService } from "./notifications.service.js";
 
-const NOTIFICATION_ROLES = new Set(["STUDENT", "SERVICE_MANAGER", "COMPLAINT_MANAGER", "FIELD_STAFF", "STAFF"]);
+const NOTIFICATION_ROLES = new Set(["STUDENT", "SERVICE_MANAGER", "COMPLAINT_MANAGER", "FIELD_STAFF", "STAFF", "INVESTIGATOR"]);
 
 export function createNotificationsController({ prisma }) {
   const service = createNotificationsService({ prisma });

@@ -44,7 +44,7 @@ export function createMisuseReportService({ prisma }) {
 
   async function createReport({ reporterId, reporterUsername, reporterRole, payload }) {
     if (!REPORTER_ROLES.includes(reporterRole)) {
-      return { status: 403, body: { message: "Only Service Manager and Student Union can report students." } };
+      return { status: 403, body: { message: "Only Service Manager and Complaint Manager can report students." } };
     }
 
     const reportedUserInput = String(payload?.reportedUserId || payload?.studentId || "").trim();

@@ -11,6 +11,43 @@ import { ChartCard } from "@/components/charts/ChartCard";
 
 const statusOptions = ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS", "RESOLVED", "REJECTED"];
 
+const COMPLAINT_TYPE_ALIASES = {
+  "FOOD SERVICE": "FOOD_SERVICE",
+  "FOOD SERVICE BUREAU": "FOOD_SERVICE",
+  FOODSERVICE: "FOOD_SERVICE",
+  FOOD_SERVICE: "FOOD_SERVICE",
+  ACADEMIC: "ACADEMIC",
+  "ACADEMIC BUREAU": "ACADEMIC",
+  DISCIPLINE: "DISCIPLINE",
+  "DISCIPLINE BUREAU": "DISCIPLINE",
+  GENERAL: "GENERAL_SERVICE",
+  "GENERAL SERVICE": "GENERAL_SERVICE",
+  "GENERAL SERVICE BUREAU": "GENERAL_SERVICE",
+  HEALTH: "HEALTH_CASE",
+  "HEALTH CASE": "HEALTH_CASE",
+  "HEALTH CASE BUREAU": "HEALTH_CASE",
+  DISABILITY: "DISABILITY_CASE",
+  "DISABILITY CASE": "DISABILITY_CASE",
+  "DISABILITY CASE BUREAU": "DISABILITY_CASE",
+  WOMEN: "WOMEN_CASE",
+  "WOMEN CASE": "WOMEN_CASE",
+  "WOMEN CASE BUREAU": "WOMEN_CASE",
+  SPORTS: "SPORTS",
+  "SPORTS BUREAU": "SPORTS",
+};
+
+function normalizeComplaintTypeScope(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[-/]+/g, " ")
+    .replace(/\s+BUREAU\s*$/, "")
+    .replace(/\s+MANAGER\s*$/, "")
+    .replace(/\s+/g, " ");
+
+  return COMPLAINT_TYPE_ALIASES[normalized] || normalized.replace(/\s/g, "_");
+}
+
 export default function ComplaintManagerDashboard() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -20,11 +57,11 @@ export default function ComplaintManagerDashboard() {
   const [error, setError] = useState("");
   const [selectedAssignee, setSelectedAssignee] = useState({});
   const [selectedStatus, setSelectedStatus] = useState({});
-  const [complaintTypeFilter, setComplaintTypeFilter] = useState("ALL");
+  const [closureNotes, setClosureNotes] = useState({});
   const [reportTarget, setReportTarget] = useState(null);
   const [activities, setActivities] = useState([]);
 
-  const complaintScope = String(user?.complaintType || user?.department || "").trim().toUpperCase();
+  const complaintScope = normalizeComplaintTypeScope(user?.complaintType || user?.department || user?.category);
 
   function isInComplaintScope(item) {
     if (!complaintScope) {
@@ -48,21 +85,25 @@ export default function ComplaintManagerDashboard() {
         listUsers(token, { role: "INVESTIGATOR", limit: 100 }),
       ]);
 
-      const complaintsData = complaintResponse.items || [];
       const complaintsData = (complaintResponse.items || []).filter(isInComplaintScope);
       setComplaints(complaintsData);
       setReviewers(reviewerResponse.items || []);
 
-      // Generate activity logs from complaints
-      const mockActivities = complaintsData.slice(0, 8).map((complaint, idx) => ({
-        id: complaint.id,
-        type: complaint.status === "RESOLVED" ? "RESOLVED" : complaint.status === "IN_PROGRESS" ? "STATUS_UPDATED" : "COMPLAINT_CREATED",
-        description: `${complaint.complaintType} complaint - ${complaint.title}`,
-        actor: { name: complaint.assignedTo?.name || "System", role: "INVESTIGATOR" },
-        entity: "Complaint",
-        createdAt: new Date(new Date().getTime() - idx * 60000),
-      }));
-      setActivities(mockActivities);
+      const activityFeed = complaintsData
+        .flatMap((complaint) =>
+          (complaint.activityLogs || []).map((log) => ({
+            id: log.id,
+            type: log.action,
+            description: log.description || `${complaint.complaintType} complaint - ${complaint.title}`,
+            actor: log.actor || { name: complaint.assignedTo?.name || "System", role: "INVESTIGATOR" },
+            entity: "Complaint",
+            createdAt: new Date(log.createdAt),
+          })),
+        )
+        .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+        .slice(0, 3);
+
+      setActivities(activityFeed);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load complaints.");
     } finally {
@@ -82,24 +123,29 @@ export default function ComplaintManagerDashboard() {
 
     try {
       const response = await assignComplaint(token, complaintId, { assignedToId });
-        const response = await assignComplaint(token, complaintId, { assignedToId });
       toast.success(response?.message || "Complaint assigned successfully.");
-      await loadData();
       await loadData();
     } catch (updateError) {
       toast.error(updateError instanceof Error ? updateError.message : "Failed to assign complaint.");
     }
   };
 
-  const visibleComplaints =
-  const visibleComplaints =
-    complaintTypeFilter === "ALL"
-      ? complaints
-      : complaints.filter((item) => String(item.complaintType || "").toUpperCase() === complaintTypeFilter);
+  const updateStatus = async (complaintId) => {
+    const status = selectedStatus[complaintId];
+    if (!token || !status) return;
+    const note = String(closureNotes[complaintId] || "").trim();
 
-  const complaintTypeOptions = Array.from(
-    new Set(complaints.map((item) => String(item.complaintType || "").toUpperCase()).filter(Boolean)),
-  ).sort();
+    try {
+      const response = await updateComplaintStatus(token, complaintId, { status, note });
+      toast.success(response?.message || "Complaint status updated.");
+      setClosureNotes((current) => ({ ...current, [complaintId]: "" }));
+      await loadData();
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Failed to update complaint status.");
+    }
+  };
+
+  const visibleComplaints = complaints;
 
   const pendingComplaints = complaints.filter((c) => !["RESOLVED", "REJECTED"].includes(c.status));
   const resolvedComplaints = complaints.filter((c) => c.status === "RESOLVED");
@@ -166,27 +212,11 @@ export default function ComplaintManagerDashboard() {
           <StatsRow items={kpiItems} />
         </section>
 
-        {/* Complaint Type Filter + Activity */}
+        {/* Bureau Queue + Activity */}
         <section className="grid gap-6 lg:grid-cols-3">
           <div className="lg:col-span-2">
-            <ChartCard title="Filter & Manage" subtitle="Select complaint type to view">
+            <ChartCard title="Bureau Queue" subtitle="Complaints routed to your bureau">
               <div className="space-y-4">
-                <div>
-                  <label className="mb-3 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Filter by complaint type</label>
-                  <select
-                    value={complaintTypeFilter}
-                    onChange={(event) => setComplaintTypeFilter(event.target.value)}
-                    className="w-full rounded-lg border border-border bg-background px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-primary"
-                  >
-                    <option value="ALL">All complaint types</option>
-                    {complaintTypeOptions.map((type) => (
-                      <option key={type} value={type}>
-                        {type}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-
                 <div className="pt-3 border-t border-border">
                   <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground mb-3">Recent complaints: {visibleComplaints.length}</p>
                   <div className="space-y-2 max-h-80 overflow-y-auto">
@@ -210,7 +240,6 @@ export default function ComplaintManagerDashboard() {
           {/* Activity Feed */}
           <div>
             <ChartCard title="Recent Activity" subtitle="Department actions" loading={loading}>
-            <ChartCard title="Recent Activity" subtitle="Department actions" loading={loading}>
               <ActivityTimeline activities={activities} loading={loading} />
             </ChartCard>
           </div>
@@ -232,6 +261,18 @@ export default function ComplaintManagerDashboard() {
                           <span className="text-xs font-medium text-muted-foreground">{complaint.complaintType}</span>
                         </div>
                         <p className="text-sm text-muted-foreground truncate">{complaint.description}</p>
+                        {(() => {
+                          const latestNote = complaint.activityLogs?.find((log) => String(log.metadata?.note || "").trim());
+                          if (!latestNote) {
+                            return null;
+                          }
+
+                          return (
+                            <div className="mt-3 rounded-lg border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                              <span className="font-semibold text-foreground">Latest note:</span> {String(latestNote.metadata?.note || latestNote.description || "")}
+                            </div>
+                          );
+                        })()}
                       </div>
                       <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{complaint.status}</span>
                     </div>
@@ -240,12 +281,12 @@ export default function ComplaintManagerDashboard() {
                       <select
                         value={selectedAssignee[complaint.id] || complaint.assignedToId || ""}
                         onChange={(event) => setSelectedAssignee((current) => ({ ...current, [complaint.id]: event.target.value }))}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
                       >
-                        <option value="">Assign to...</option>
+                        <option value="">Assign investigator...</option>
                         {reviewers.map((member) => (
                           <option key={member.id} value={member.id}>
-                            {member.name}
+                            {member.name}{member.department ? ` · ${member.department}` : ""}
                           </option>
                         ))}
                       </select>
@@ -271,7 +312,25 @@ export default function ComplaintManagerDashboard() {
                         >
                           Update
                         </button>
+                        <button
+                          onClick={() => setReportTarget(complaint)}
+                          className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                        >
+                          Report Student
+                        </button>
                       </div>
+                    </div>
+
+                    <div className="mt-3">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">
+                        Final note for closure
+                      </label>
+                      <textarea
+                        value={closureNotes[complaint.id] || ""}
+                        onChange={(event) => setClosureNotes((current) => ({ ...current, [complaint.id]: event.target.value }))}
+                        placeholder="Add the final body used to close this complaint. Required for RESOLVED or REJECTED."
+                        className="min-h-24 w-full rounded-lg border border-border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-primary"
+                      />
                     </div>
                   </div>
                 ))

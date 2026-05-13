@@ -213,14 +213,14 @@ export default function Profile() {
 
                 <div className="space-y-2">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h2 className="text-3xl font-bold text-slate-950">{displayName}</h2>
+                    <h2 className="text-3xl font-bold text-white drop-shadow">{displayName}</h2>
                     <span className={`inline-flex rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-[0.18em] ${roleBadgeClass(currentUser.role)}`}>
                       <Shield className="mr-1 h-3.5 w-3.5" />
                       {roleLabel}
                     </span>
                   </div>
-                  <p className="text-sm text-slate-500">{currentUser.username || "-"}</p>
-                  <p className="max-w-2xl text-sm text-slate-600">
+                  <p className="text-sm text-slate-200">{currentUser.username || "-"}</p>
+                  <p className="max-w-2xl text-sm text-slate-200">
                     Keep your account information current, upload a profile photo, and manage your password from one place.
                   </p>
                 </div>

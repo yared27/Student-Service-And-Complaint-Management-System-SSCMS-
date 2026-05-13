@@ -11,6 +11,17 @@ import { ChartCard } from "@/components/charts/ChartCard";
 
 const statusOptions = ["SUBMITTED", "IN_PROGRESS", "COMPLETED", "REJECTED"];
 
+function extractLatestNote(activityLogs = []) {
+  const noteLog = activityLogs.find((entry) => String(entry?.description || "").includes("Note:"));
+  if (!noteLog) {
+    return "";
+  }
+
+  const description = String(noteLog.description || "");
+  const notePart = description.split("Note:").slice(1).join("Note:").trim();
+  return notePart;
+}
+
 export default function ServiceManagerDashboard() {
   const { token, user } = useAuth();
   const [requests, setRequests] = useState([]);
@@ -48,21 +59,25 @@ export default function ServiceManagerDashboard() {
         listUsers(token, { role: "STAFF", limit: 100, category: user?.category }),
       ]);
 
-      const requestsData = requestResponse.items || [];
       const requestsData = (requestResponse.items || []).filter(isInServiceScope);
       setRequests(requestsData);
       setStaff(staffResponse.items || []);
 
-      // Generate activity logs from requests
-      const mockActivities = requestsData.slice(0, 8).map((request, idx) => ({
-        id: request.id,
-        type: request.status === "COMPLETED" ? "RESOLVED" : request.status === "IN_PROGRESS" ? "STATUS_UPDATED" : "SERVICE_REQUEST_CREATED",
-        description: `${request.serviceType} request - ${request.title}`,
-        actor: { name: request.assignedTo?.name || "System", role: "STAFF" },
-        entity: "Service Request",
-        createdAt: new Date(new Date().getTime() - idx * 60000),
-      }));
-      setActivities(mockActivities);
+      const activityFeed = requestsData
+        .flatMap((request) =>
+          (request.activityLogs || []).map((entry) => ({
+            id: entry.id,
+            type: entry.action,
+            description: entry.description || `${request.serviceType} request - ${request.title}`,
+            actor: entry.actor || { name: request.assignedTo?.name || "System", role: "STAFF" },
+            entity: "Service Request",
+            createdAt: new Date(entry.createdAt),
+          })),
+        )
+        .sort((left, right) => new Date(right.createdAt) - new Date(left.createdAt))
+        .slice(0, 3);
+
+      setActivities(activityFeed);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : "Failed to load service requests.");
     } finally {
@@ -70,7 +85,6 @@ export default function ServiceManagerDashboard() {
     }
   }
 
-  useEffect(() => {
   useEffect(() => {
     loadData();
   }, [token, serviceScope]);
@@ -233,20 +247,25 @@ export default function ServiceManagerDashboard() {
                 <div className="text-center py-8 text-muted-foreground">No service requests found.</div>
               ) : (
                 requests.map((request) => (
-                  <div key={request.id} className="rounded-lg border border-border p-4 hover:border-foreground transition-colors space-y-3">
+                  <div key={request.id} className="rounded-2xl border border-border p-4 shadow-sm transition-colors hover:border-foreground">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1">
                         <p className="font-semibold text-foreground">{request.title}</p>
                         <p className="text-sm text-muted-foreground truncate">{request.description}</p>
+                        {extractLatestNote(request.activityLogs || []) ? (
+                          <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
+                            <span className="font-semibold text-foreground">Latest staff note:</span> {extractLatestNote(request.activityLogs || [])}
+                          </div>
+                        ) : null}
                       </div>
                       <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{request.status}</span>
                     </div>
 
-                    <div className="grid gap-2 sm:grid-cols-3">
+                    <div className="grid gap-2 lg:grid-cols-[1.1fr_0.9fr_auto] lg:items-end">
                       <select
                         value={selectedAssignee[request.id] || request.assignedToId || ""}
                         onChange={(event) => setSelectedAssignee((current) => ({ ...current, [request.id]: event.target.value }))}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary"
                       >
                         <option value="">Assign staff...</option>
                         {staff.map((member) => (
@@ -259,7 +278,7 @@ export default function ServiceManagerDashboard() {
                       <select
                         value={selectedStatus[request.id] || request.statusRaw || request.status}
                         onChange={(event) => setSelectedStatus((current) => ({ ...current, [request.id]: event.target.value }))}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-xs outline-none transition-colors focus:ring-2 focus:ring-primary"
                       >
                         {statusOptions.map((status) => (
                           <option key={status} value={status}>
@@ -274,21 +293,28 @@ export default function ServiceManagerDashboard() {
                           updateAssignment(request.id);
                         }}
                         disabled={savingRequestId === request.id}
-                        className="rounded-lg bg-primary text-primary-foreground px-3 py-2 text-xs font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        className="rounded-2xl bg-primary px-5 py-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
                       >
                         {savingRequestId === request.id ? "Updating..." : "Update"}
                       </button>
+                      <button
+                        onClick={() => setReportTarget(request)}
+                        className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                      >
+                        Report Student
+                      </button>
                     </div>
 
-                    {statusNotes[request.id] !== undefined && (
+                    <div className="mt-3">
+                      <label className="mb-2 block text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Final note for manager</label>
                       <textarea
                         value={statusNotes[request.id] || ""}
                         onChange={(event) => setStatusNotes((current) => ({ ...current, [request.id]: event.target.value }))}
                         placeholder="Add manager note or rejection reason..."
                         rows={2}
-                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs outline-none focus:ring-2 focus:ring-primary"
+                        className="w-full rounded-2xl border border-border bg-background px-4 py-3 text-sm outline-none transition-colors focus:ring-2 focus:ring-primary"
                       />
-                    )}
+                    </div>
                   </div>
                 ))
               )}

@@ -222,11 +222,10 @@ export default function AdminDashboard() {
               title="Recent Reports"
               subtitle="Latest student conduct reports"
               loading={loading}
-              empty={reports.length === 0}
               empty={filteredReports.length === 0}
             >
               <div className="space-y-3">
-                {reports.slice(0, 6).map((report) => (
+                {filteredReports.slice(0, 6).map((report) => (
                   <div key={report.id} className="rounded-lg border border-border p-4 hover:bg-muted/50 transition-colors">
                     <div className="flex flex-wrap items-center justify-between gap-3">
                       <div className="flex-1">
@@ -272,7 +271,6 @@ export default function AdminDashboard() {
           </ChartCard>
 
           <ChartCard title="Most Requested" loading={loading} empty={!serviceSeries.length}>
-              <ChartCard title="Most Requested" loading={loading} empty={!serviceSeries.length}>
             <p className="text-2xl font-bold text-foreground truncate">{topEntry(serviceSeries, "No data")}</p>
           </ChartCard>
 

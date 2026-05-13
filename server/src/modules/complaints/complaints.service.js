@@ -21,9 +21,24 @@ const COMPLAINT_SAFE_SELECT = {
   createdAt: true,
   updatedAt: true,
   resolvedAt: true,
+  canReopenUntil: true,
+  isReopened: true,
+  reopenedAt: true,
   createdBy: { select: { id: true, name: true, username: true } },
   assignedTo: { select: { id: true, name: true, role: true } },
   attachments: { orderBy: { createdAt: "asc" } },
+  activityLogs: {
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: {
+      id: true,
+      action: true,
+      description: true,
+      metadata: true,
+      createdAt: true,
+      actor: { select: { id: true, name: true, role: true } },
+    },
+  },
 };
 
 function normalizeComplaintType(value) {
@@ -101,6 +116,9 @@ async function notifyUser(prisma, userId, type, title, message, extra = {}) {
       type,
       title,
       message,
+      route: extra.route || null,
+      entityType: extra.entityType || null,
+      entityId: extra.entityId || null,
     },
   });
 }
@@ -141,6 +159,60 @@ async function pickComplaintManagerForType(prisma, complaintType) {
 
       return {
         ...manager,
+        activeLoad,
+      };
+    }),
+  );
+
+  withLoad.sort((left, right) => {
+    if (left.activeLoad !== right.activeLoad) {
+      return left.activeLoad - right.activeLoad;
+    }
+
+    return left.id.localeCompare(right.id);
+  });
+
+  return withLoad[0];
+}
+
+async function pickComplaintInvestigatorForManager(prisma, complaintManagerId) {
+  if (!complaintManagerId) {
+    return null;
+  }
+
+  const investigators = await prisma.user.findMany({
+    where: {
+      role: "INVESTIGATOR",
+      status: { in: ["ACTIVE", "WARNED"] },
+      managedByComplaintManagerId: complaintManagerId,
+    },
+    select: {
+      id: true,
+      name: true,
+    },
+  });
+
+  if (!investigators.length) {
+    return null;
+  }
+
+  if (investigators.length === 1) {
+    return investigators[0];
+  }
+
+  const withLoad = await Promise.all(
+    investigators.map(async (investigator) => {
+      const activeLoad = await prisma.complaint.count({
+        where: {
+          assignedToId: investigator.id,
+          status: {
+            in: ["SUBMITTED", "UNDER_REVIEW", "IN_PROGRESS"],
+          },
+        },
+      });
+
+      return {
+        ...investigator,
         activeLoad,
       };
     }),
@@ -257,6 +329,8 @@ export function createComplaintsService({ prisma }) {
       };
     }
 
+    const investigator = await pickComplaintInvestigatorForManager(prisma, manager.id);
+
     console.log("Routing to manager:", manager.id);
 
     let complaint;
@@ -271,6 +345,7 @@ export function createComplaintsService({ prisma }) {
           category,
           createdById: userId,
           assignedComplaintManagerId: manager.id,
+          ...(investigator?.id ? { assignedToId: investigator.id } : {}),
           attachments: attachmentUrls.length
             ? {
                 create: attachmentUrls,
@@ -311,6 +386,34 @@ export function createComplaintsService({ prisma }) {
       `A ${complaintType.toLowerCase().replaceAll("_", " ")} complaint has been routed to your queue: ${complaint.title}`,
       {
         route: "/complaint-manager/complaints",
+        entityType: "COMPLAINT",
+        entityId: complaint.id,
+      },
+    );
+
+    if (investigator?.id) {
+      await notifyUser(
+        prisma,
+        investigator.id,
+        "COMPLAINT",
+        "New complaint assignment",
+        `You have been assigned to complaint: ${complaint.title}`,
+        {
+          route: "/investigator/dashboard",
+          entityType: "COMPLAINT",
+          entityId: complaint.id,
+        },
+      );
+    }
+
+    await notifyUser(
+      prisma,
+      userId,
+      "COMPLAINT",
+      "Complaint submitted",
+      `Your complaint "${complaint.title}" has been submitted and routed for review.`,
+      {
+        route: `/student/submission/${complaint.id}`,
         entityType: "COMPLAINT",
         entityId: complaint.id,
       },
@@ -413,6 +516,7 @@ export function createComplaintsService({ prisma }) {
         title: true,
         status: true,
         createdById: true,
+        assignedComplaintManagerId: true,
       },
     });
 
@@ -475,11 +579,44 @@ export function createComplaintsService({ prisma }) {
       "New complaint assignment",
       `You have been assigned to complaint: ${updated.title}`,
       {
-        route: "/student/dashboard",
+        route: "/investigator/dashboard",
         entityType: "COMPLAINT",
         entityId: updated.id,
       },
     );
+
+    await notifyUser(
+      prisma,
+      complaint.createdById,
+      "COMPLAINT",
+      "Complaint reassigned",
+      `Your complaint "${updated.title}" has been assigned to an investigator.`,
+      {
+        route: `/student/submission/${updated.id}`,
+        entityType: "COMPLAINT",
+        entityId: updated.id,
+      },
+    );
+
+    if (complaint.assignedComplaintManagerId) {
+      const managerProfile = await prisma.complaintManager.findUnique({
+        where: { id: complaint.assignedComplaintManagerId },
+        select: { userId: true },
+      });
+
+      await notifyUser(
+        prisma,
+        managerProfile?.userId,
+        "COMPLAINT",
+        "Complaint assigned",
+        `Complaint "${updated.title}" is now assigned to ${assignee.name}.`,
+        {
+          route: "/complaint-manager/complaints",
+          entityType: "COMPLAINT",
+          entityId: updated.id,
+        },
+      );
+    }
 
     return { status: 200, body: { message: "Complaint assigned.", complaint: updated } };
   }
@@ -487,6 +624,7 @@ export function createComplaintsService({ prisma }) {
   async function updateComplaintStatus({ userId, role, complaintId, payload }) {
     const status = String(payload?.status || "").trim();
     const assignedToId = payload?.assignedToId ? String(payload.assignedToId) : undefined;
+    const note = String(payload?.note || payload?.reason || "").trim();
 
     if (!status) {
       return { status: 400, body: { message: "status is required." } };
@@ -511,10 +649,10 @@ export function createComplaintsService({ prisma }) {
       return { status: 403, body: { message: "You can only update complaints assigned to you." } };
     }
 
-    if (role === "INVESTIGATOR" && !["UNDER_REVIEW", "IN_PROGRESS", "RESOLVED", "REJECTED"].includes(status)) {
+    if (role === "INVESTIGATOR" && !["IN_PROGRESS"].includes(status)) {
       return {
         status: 400,
-        body: { message: "Investigators can only move complaints to UNDER_REVIEW, IN_PROGRESS, RESOLVED, or REJECTED." },
+        body: { message: "Investigators can only move complaints to IN_PROGRESS. Only complaint managers can finalize complaints." },
       };
     }
 
@@ -535,6 +673,7 @@ export function createComplaintsService({ prisma }) {
         status,
         ...(role !== "INVESTIGATOR" && assignedToId ? { assignedToId } : {}),
         resolvedAt: ["RESOLVED", "REJECTED"].includes(status) ? new Date() : null,
+        canReopenUntil: ["RESOLVED", "REJECTED"].includes(status) ? new Date(new Date().getTime() + 2 * 24 * 60 * 60 * 1000) : null,
       },
       select: COMPLAINT_SAFE_SELECT,
     });
@@ -546,17 +685,44 @@ export function createComplaintsService({ prisma }) {
         action: "COMPLAINT_STATUS_UPDATED",
         entityType: "COMPLAINT",
         entityId: complaintId,
-        description: `Complaint status updated to ${status}.`,
+        description: note ? `Complaint status updated to ${status}. Note: ${note}` : `Complaint status updated to ${status}.`,
+        metadata: note ? { note, status, updatedByRole: role } : undefined,
       },
     });
 
-    if (updated.assignedToId && ["RESOLVED", "REJECTED"].includes(updated.status)) {
+    const managerProfile = updated.assignedComplaintManagerId
+      ? await prisma.complaintManager.findUnique({
+          where: { id: updated.assignedComplaintManagerId },
+          select: { userId: true },
+        })
+      : null;
+
+    if (role === "INVESTIGATOR") {
+      await notifyUser(
+        prisma,
+        managerProfile?.userId,
+        "COMPLAINT",
+        "Complaint progressed",
+        note
+          ? `Complaint "${updated.title}" was updated to ${updated.status.toLowerCase().replaceAll("_", " ")}. Note: ${note}`
+          : `Complaint "${updated.title}" was updated to ${updated.status.toLowerCase().replaceAll("_", " ")}.`,
+        {
+          route: "/complaint-manager/complaints",
+          entityType: "COMPLAINT",
+          entityId: updated.id,
+        },
+      );
+    }
+
+    if (["RESOLVED", "REJECTED"].includes(updated.status) && ["COMPLAINT_MANAGER", "ADMIN"].includes(role)) {
       await notifyUser(
         prisma,
         updated.createdById,
         "COMPLAINT",
-        "Complaint reviewed",
-        `Your complaint \"${updated.title}\" has been ${updated.status.toLowerCase().replace("_", " ")}.`,
+        updated.status === "RESOLVED" ? "Complaint resolved" : "Complaint reviewed",
+        note
+          ? `Your complaint \"${updated.title}\" has been ${updated.status.toLowerCase().replace("_", " ")}. Note: ${note}`
+          : `Your complaint \"${updated.title}\" has been ${updated.status.toLowerCase().replace("_", " ")}.`,
         {
           route: `/student/submission/${updated.id}`,
           entityType: "COMPLAINT",
@@ -565,7 +731,100 @@ export function createComplaintsService({ prisma }) {
       );
     }
 
+    if (role === "INVESTIGATOR" && managerProfile?.userId) {
+      await notifyUser(
+        prisma,
+        managerProfile.userId,
+        "COMPLAINT",
+        "Complaint progressed",
+        note
+          ? `Complaint "${updated.title}" was updated to ${updated.status.toLowerCase().replaceAll("_", " ")}. Note: ${note}`
+          : `Complaint "${updated.title}" was updated to ${updated.status.toLowerCase().replaceAll("_", " ")}.`,
+        {
+          route: "/complaint-manager/complaints",
+          entityType: "COMPLAINT",
+          entityId: updated.id,
+        },
+      );
+    }
+
     return { status: 200, body: { message: "Complaint updated.", complaint: updated } };
+  }
+
+  async function reopenComplaint({ userId, role, complaintId, payload }) {
+    const normalizedRole = String(role || "").toUpperCase();
+    if (normalizedRole !== "STUDENT") {
+      return { status: 403, body: { message: "Only students can reopen their complaints." } };
+    }
+
+    const existing = await prisma.complaint.findUnique({
+      where: { id: complaintId },
+      select: {
+        id: true,
+        createdById: true,
+        status: true,
+        canReopenUntil: true,
+        assignedComplaintManagerId: true,
+      },
+    });
+
+    if (!existing) {
+      return { status: 404, body: { message: "Complaint not found." } };
+    }
+
+    if (existing.createdById !== userId) {
+      return { status: 403, body: { message: "Only the complaint creator can reopen this complaint." } };
+    }
+
+    if (!["RESOLVED", "REJECTED"].includes(existing.status)) {
+      return { status: 400, body: { message: "Only resolved or rejected complaints can be reopened." } };
+    }
+
+    if (!existing.canReopenUntil || new Date() > new Date(existing.canReopenUntil)) {
+      return { status: 400, body: { message: "The reopen window has expired for this complaint." } };
+    }
+
+    const reopened = await prisma.complaint.update({
+      where: { id: complaintId },
+      data: {
+        status: "SUBMITTED",
+        isReopened: true,
+        reopenedAt: new Date(),
+        resolvedAt: null,
+        canReopenUntil: null,
+      },
+      select: COMPLAINT_SAFE_SELECT,
+    });
+
+    await prisma.activityLog.create({
+      data: {
+        actorId: userId,
+        complaintId: complaintId,
+        action: "COMPLAINT_REOPENED",
+        entityType: "COMPLAINT",
+        entityId: complaintId,
+        description: "Complaint was reopened by the creator.",
+      },
+    });
+
+    const managerProfile = reopened.assignedComplaintManagerId
+      ? await prisma.complaintManager.findUnique({
+          where: { id: reopened.assignedComplaintManagerId },
+          select: { userId: true },
+        })
+      : null;
+
+    if (managerProfile?.userId) {
+      await notifyUser(
+        prisma,
+        managerProfile.userId,
+        "COMPLAINT",
+        "A complaint was reopened",
+        `The complaint \"${reopened.title}\" was reopened by the student.`,
+      );
+    }
+
+    return { status: 200, body: { message: "Complaint reopened.", complaint: reopened } };
   }
 
   async function updateGrievanceStatus({ userId, role, complaintId, payload }) {
@@ -639,19 +898,6 @@ export function createComplaintsService({ prisma }) {
       },
     });
 
-    await notifyUser(
-      prisma,
-      updated.createdById,
-      "COMPLAINT",
-      "Grievance phase updated",
-      `Your grievance has moved to ${nextStatus.replace("_", " ")}.`,
-      {
-        route: `/student/submission/${updated.id}`,
-        entityType: "COMPLAINT",
-        entityId: updated.id,
-      },
-    );
-
     return { status: 200, body: { message: "Grievance phase updated.", complaint: updated } };
   }
 
@@ -663,5 +909,6 @@ export function createComplaintsService({ prisma }) {
     assignComplaint,
     updateComplaintStatus,
     updateGrievanceStatus,
+    reopenComplaint,
   };
 }

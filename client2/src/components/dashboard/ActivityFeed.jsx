@@ -116,9 +116,9 @@ function formatTimeAgo(date) {
 export function ActivityTimeline({ activities = [], loading = false }) {
   if (loading) {
     return (
-      <div className="space-y-4">
+      <div className="space-y-3">
         {[...Array(3)].map((_, i) => (
-          <div key={i} className="h-16 bg-muted rounded-lg animate-pulse" />
+          <div key={i} className="h-14 bg-muted rounded-lg animate-pulse" />
         ))}
       </div>
     );
@@ -126,21 +126,21 @@ export function ActivityTimeline({ activities = [], loading = false }) {
 
   return (
     <div className="relative">
-      <div className="absolute left-6 top-0 bottom-0 w-0.5 bg-border" />
+      <div className="absolute left-4 top-0 bottom-0 w-0.5 bg-border" />
 
-      <div className="space-y-6">
+      <div className="space-y-3">
         {activities.map((activity, idx) => {
           const config = activityTypeConfig[activity.type] || activityTypeConfig.SERVICE_REQUEST_CREATED;
           const Icon = config.icon;
 
           return (
-            <div key={activity.id || idx} className="relative pl-16">
-              <div className={`absolute left-0 top-1 rounded-full ${config.color} p-2.5`}>
-                <Icon className={`w-4 h-4 ${config.iconColor}`} />
+            <div key={activity.id || idx} className="relative pl-12">
+              <div className={`absolute left-0 top-1 rounded-full ${config.color} p-2`}>
+                <Icon className={`w-3.5 h-3.5 ${config.iconColor}`} />
               </div>
-              <div className="bg-muted/50 rounded-lg p-4">
+              <div className="bg-muted/50 rounded-lg p-3">
                 <p className="text-sm font-medium text-foreground">{activity.description || config.label}</p>
-                <p className="text-xs text-muted-foreground mt-2">
+                <p className="text-xs text-muted-foreground mt-1.5">
                   {activity.actor?.name || "System"} · {new Date(activity.createdAt).toLocaleString()}
                 </p>
               </div>

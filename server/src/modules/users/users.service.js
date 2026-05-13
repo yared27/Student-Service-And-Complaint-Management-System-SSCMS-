@@ -531,7 +531,7 @@ export function createUsersService({ prisma }) {
     if (normalizedActorRole === "COMPLAINT_MANAGER" && actorId) {
       const actor = await prisma.user.findUnique({
         where: { id: actorId },
-        select: { role: true, category: true, complaintManagerProfile: { select: { complaintType: true } } },
+        select: { role: true, category: true, complaintManagerProfile: { select: { complaintType: true, category: true } } },
       });
 
       if (String(actor?.role || "").toUpperCase() !== "COMPLAINT_MANAGER") {
@@ -548,10 +548,24 @@ export function createUsersService({ prisma }) {
 
       const actorComplaintManager = await prisma.complaintManager.findFirst({
         where: { userId: actorId },
-        select: { id: true },
+        select: { id: true, complaintType: true, category: true },
       });
 
-      where.managedByComplaintManagerId = actorComplaintManager?.id;
+      const managerComplaintType = String(
+        actorComplaintManager?.complaintType || actor?.complaintManagerProfile?.complaintType || "",
+      ).trim().toUpperCase();
+      const managerCategory = String(
+        actorComplaintManager?.category || actor?.complaintManagerProfile?.category || actor?.category || "",
+      ).trim().toUpperCase();
+
+      where = {
+        ...where,
+        OR: [
+          ...(actorComplaintManager?.id ? [{ managedByComplaintManagerId: actorComplaintManager.id }] : []),
+          ...(managerCategory ? [{ category: managerCategory }] : []),
+          ...(managerComplaintType ? [{ department: { contains: managerComplaintType.replaceAll("_", " "), mode: "insensitive" } }] : []),
+        ],
+      };
     }
 
     if (category && normalizedActorRole !== "SERVICE_MANAGER" && normalizedActorRole !== "COMPLAINT_MANAGER") {

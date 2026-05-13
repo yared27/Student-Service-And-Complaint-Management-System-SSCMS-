@@ -40,7 +40,7 @@ import NotFound from "./pages/NotFound.jsx";
 const queryClient = new QueryClient();
 const AUTH_ROLES = ["student", "service_manager", "field_staff", "staff", "complaint_manager", "investigator", "admin"];
 const STUDENT_ROLES = ["student"];
-const NOTIFICATION_ROLES = ["student", "service_manager", "field_staff", "staff", "complaint_manager"];
+const NOTIFICATION_ROLES = ["student", "service_manager", "field_staff", "staff", "complaint_manager", "investigator"];
 const SUPPORT_ROLES = ["student", "field_staff", "staff", "complaint_manager"];
 
 function getDashboardPathByRole(role) {

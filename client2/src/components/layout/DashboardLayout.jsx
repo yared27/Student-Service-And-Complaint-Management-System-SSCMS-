@@ -7,12 +7,13 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api/httpClient";
 
-const NOTIFICATION_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager", "service_manager"]);
+const NOTIFICATION_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager", "service_manager", "investigator"]);
 const SUPPORT_ROLES = new Set(["student", "field_staff", "staff", "complaint_manager"]);
 
 const ROLE_NAV = {
   student: [
     { to: "/student/dashboard", label: "Dashboard", end: true },
+    { to: "/student/complaints", label: "My Complaints" },
     { to: "/student/requests", label: "My Requests" },
     { to: "/student/request/new", label: "New Request" },
     { to: "/student/complaint/new", label: "New Complaint" },

@@ -70,7 +70,7 @@ export function createServiceRequestsRouter({ prisma, auth }) {
   router.patch(
     "/:id/status",
     auth.authenticate,
-    auth.authorizeRoles("STAFF", "SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"),
+    auth.authorizeRoles("STUDENT", "STAFF", "SERVICE_MANAGER", "COMPLAINT_MANAGER", "ADMIN"),
     controller.updateRequestStatus,
   );
 

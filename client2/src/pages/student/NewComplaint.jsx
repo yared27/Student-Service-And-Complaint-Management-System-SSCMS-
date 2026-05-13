@@ -122,10 +122,14 @@ const NewComplaint = () => {
 
   // AI advisory for priority / duplicate detection
   React.useEffect(() => {
-    const text = String(description || "").trim();
-    if (text.length < 50) {
+    const text = [complaintType ? `Complaint type: ${complaintType}` : "", String(description || "").trim()]
+      .filter(Boolean)
+      .join("\n")
+      .trim();
+
+    if (text.length < 20) {
       setAiSuggestion(null);
-      setAiMessage("");
+      setAiMessage(complaintType ? "Add more details to get AI priority and duplicate checks." : "Select a complaint type and start describing the issue to see AI analysis.");
       setAiLoading(false);
       return undefined;
     }
@@ -150,7 +154,7 @@ const NewComplaint = () => {
     }, 650);
 
     return () => window.clearTimeout(id);
-  }, [description]);
+  }, [complaintType, description]);
 
   // SUCCESS SCREEN
   if (showSuccess) {
@@ -384,79 +388,77 @@ const NewComplaint = () => {
               </div>
 
               {/* AI ADVISORY BOX */}
-              {description.length >= 50 && (
-                <div
-                  className={`p-6 rounded-3xl border-2 transition-all ${
-                    aiLoading
-                      ? "border-blue-200 bg-blue-50/50"
-                      : aiSuggestion && aiSuggestion.duplicate_score > 0.7
-                        ? "border-red-200 bg-red-50/50"
-                        : aiSuggestion
-                          ? "border-emerald-200 bg-emerald-50/50"
-                          : "border-slate-100 bg-slate-50"
-                  }`}
-                >
-                  <div className="flex items-center justify-between gap-4 mb-4">
-                    <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
-                      AI Analysis
-                    </h4>
-                    {aiLoading && (
-                      <div className="w-4 h-4 rounded-full border-2 border-blue-300 border-r-blue-500 animate-spin" />
-                    )}
-                  </div>
-
-                  {aiSuggestion && !aiLoading ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200">
-                          <span className="text-[10px] font-bold text-slate-600">Priority:</span>
-                          <span
-                            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                              aiSuggestion.priority === "URGENT"
-                                ? "bg-red-100 text-red-700"
-                                : aiSuggestion.priority === "HIGH"
-                                  ? "bg-orange-100 text-orange-700"
-                                  : aiSuggestion.priority === "MEDIUM"
-                                    ? "bg-blue-100 text-blue-700"
-                                    : "bg-green-100 text-green-700"
-                            }`}
-                          >
-                            {aiSuggestion.priority || "MEDIUM"}
-                          </span>
-                        </div>
-
-                        <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200">
-                          <span className="text-[10px] font-bold text-slate-600">Similarity:</span>
-                          <span
-                            className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
-                              aiSuggestion.duplicate_score > 0.7
-                                ? "bg-red-100 text-red-700"
-                                : aiSuggestion.duplicate_score >= 0.4
-                                  ? "bg-amber-100 text-amber-700"
-                                  : "bg-emerald-100 text-emerald-700"
-                            }`}
-                          >
-                            {aiSuggestion.duplicate_label || "LOW"}
-                          </span>
-                        </div>
-                      </div>
-
-                      {aiSuggestion.duplicate_score > 0.7 && (
-                        <div className="flex items-start gap-2 p-3 bg-red-100 border border-red-200 rounded-2xl">
-                          <AlertCircle size={14} className="text-red-600 mt-0.5 shrink-0" />
-                          <p className="text-[11px] font-bold text-red-700">
-                            A similar complaint already exists. Please review before submitting.
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  ) : aiMessage && !aiLoading ? (
-                    <p className="text-[11px] text-slate-600 font-medium">{aiMessage}</p>
-                  ) : (
-                    <p className="text-[11px] text-slate-500 font-medium">Analyzing your complaint...</p>
+              <div
+                className={`p-6 rounded-3xl border-2 transition-all ${
+                  aiLoading
+                    ? "border-blue-200 bg-blue-50/50"
+                    : aiSuggestion && aiSuggestion.duplicate_score > 0.7
+                      ? "border-red-200 bg-red-50/50"
+                      : aiSuggestion
+                        ? "border-emerald-200 bg-emerald-50/50"
+                        : "border-slate-100 bg-slate-50"
+                }`}
+              >
+                <div className="flex items-center justify-between gap-4 mb-4">
+                  <h4 className="text-[10px] font-black text-slate-400 uppercase tracking-widest">
+                    AI Analysis
+                  </h4>
+                  {aiLoading && (
+                    <div className="w-4 h-4 rounded-full border-2 border-blue-300 border-r-blue-500 animate-spin" />
                   )}
                 </div>
-              )}
+
+                {aiSuggestion && !aiLoading ? (
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-3 flex-wrap">
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-600">Priority:</span>
+                        <span
+                          className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            aiSuggestion.priority === "URGENT"
+                              ? "bg-red-100 text-red-700"
+                              : aiSuggestion.priority === "HIGH"
+                                ? "bg-orange-100 text-orange-700"
+                                : aiSuggestion.priority === "MEDIUM"
+                                  ? "bg-blue-100 text-blue-700"
+                                  : "bg-green-100 text-green-700"
+                          }`}
+                        >
+                          {aiSuggestion.priority || "MEDIUM"}
+                        </span>
+                      </div>
+
+                      <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-white rounded-full border border-slate-200">
+                        <span className="text-[10px] font-bold text-slate-600">Similarity:</span>
+                        <span
+                          className={`text-[10px] font-black uppercase px-2 py-0.5 rounded-full ${
+                            aiSuggestion.duplicate_score > 0.7
+                              ? "bg-red-100 text-red-700"
+                              : aiSuggestion.duplicate_score >= 0.4
+                                ? "bg-amber-100 text-amber-700"
+                                : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {aiSuggestion.duplicate_label || "LOW"}
+                        </span>
+                      </div>
+                    </div>
+
+                    {aiSuggestion.duplicate_score > 0.7 && (
+                      <div className="flex items-start gap-2 p-3 bg-red-100 border border-red-200 rounded-2xl">
+                        <AlertCircle size={14} className="text-red-600 mt-0.5 shrink-0" />
+                        <p className="text-[11px] font-bold text-red-700">
+                          A similar complaint already exists. Please review before submitting.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+                ) : aiMessage && !aiLoading ? (
+                  <p className="text-[11px] text-slate-600 font-medium">{aiMessage}</p>
+                ) : (
+                  <p className="text-[11px] text-slate-500 font-medium">AI will analyze your complaint type and details for priority and duplicates.</p>
+                )}
+              </div>
 
               {/* ROW 3: Confidentiality */}
               <div

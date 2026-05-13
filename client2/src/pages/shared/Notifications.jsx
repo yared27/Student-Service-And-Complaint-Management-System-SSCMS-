@@ -10,6 +10,7 @@ const DASHBOARD_PATH_BY_ROLE = {
   student: "/student/dashboard",
   service_manager: "/service-manager/dashboard",
   complaint_manager: "/complaint-manager/dashboard",
+  investigator: "/investigator/dashboard",
   field_staff: "/field-staff/dashboard",
   staff: "/field-staff/dashboard",
 };

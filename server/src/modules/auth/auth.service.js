@@ -7,7 +7,8 @@ const ACCESS_TOKEN_TTL = process.env.ACCESS_TOKEN_TTL || "12h";
 const ACCESS_TOKEN_TTL_REMEMBER_ME = process.env.ACCESS_TOKEN_TTL_REMEMBER_ME || "7d";
 const REFRESH_TOKEN_TTL = process.env.REFRESH_TOKEN_TTL || "30d";
 const PASSWORD_RESET_TOKEN_TTL_MINUTES = Number(process.env.PASSWORD_RESET_TOKEN_TTL_MINUTES || 15);
-const LOGIN_ATTEMPT_LIMIT = 4;
+// Disabled limiter: set very high limit to effectively remove rate limiting during development
+const LOGIN_ATTEMPT_LIMIT = Number.MAX_SAFE_INTEGER;
 const LOGIN_ATTEMPT_WINDOW_MS = Number(process.env.LOGIN_ATTEMPT_WINDOW_MS || 15 * 60 * 1000);
 const failedLoginAttempts = new Map();
 
@@ -125,6 +126,13 @@ function getLoginAttemptKey(identity, identifier, ipAddress) {
   return [String(identity || "auto").trim().toLowerCase(), String(identifier || "").trim().toLowerCase(), String(ipAddress || "unknown")].join("|");
 }
 
+function pushCandidate(candidates, where) {
+  const serialized = JSON.stringify(where);
+  if (!candidates.some((candidate) => JSON.stringify(candidate.where) === serialized)) {
+    candidates.push({ where });
+  }
+}
+
 function getFailedLoginRecord(key) {
   const record = failedLoginAttempts.get(key);
   if (!record) {
@@ -158,13 +166,17 @@ function clearFailedLoginAttempts(key) {
 function buildLoginCandidateQueries(identity, identifierRaw) {
   const identifier = String(identifierRaw || "").trim();
   const normalizedIdentity = String(identity || "").trim().toLowerCase();
+  const exactUsername = identifier;
+  const upperUsername = identifier.toUpperCase();
+  const lowerUsername = identifier.toLowerCase();
+  const normalizedEmail = identifier.toLowerCase();
 
   if (!identifier) {
     return { error: "Identity, identifier, and password are required." };
   }
 
   if (normalizedIdentity === "student") {
-    const normalized = identifier.toUpperCase();
+    const normalized = upperUsername;
     if (!STUDENT_ID_REGEX.test(normalized)) {
       return { error: "Invalid student ID format." };
     }
@@ -173,7 +185,7 @@ function buildLoginCandidateQueries(identity, identifierRaw) {
   }
 
   if (normalizedIdentity === "field") {
-    const normalized = identifier.toUpperCase();
+    const normalized = upperUsername;
     if (!EMPLOYEE_ID_REGEX.test(normalized)) {
       return { error: "Invalid employee ID format." };
     }
@@ -182,44 +194,64 @@ function buildLoginCandidateQueries(identity, identifierRaw) {
   }
 
   if (["staff", "investigator", "complaint_manager", "service_manager"].includes(normalizedIdentity)) {
-    const normalizedEmail = identifier.toLowerCase();
     if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
-      return { candidates: [{ where: { email: normalizedEmail } }, { where: { username: identifier.toUpperCase() } }] };
+      return {
+        candidates: [
+          { where: { email: normalizedEmail } },
+          { where: { username: exactUsername } },
+          { where: { username: upperUsername } },
+          { where: { username: lowerUsername } },
+        ],
+      };
     }
 
-    return { candidates: [{ where: { username: identifier.toUpperCase() } }] };
+    return {
+      candidates: [
+        { where: { username: exactUsername } },
+        { where: { username: upperUsername } },
+        { where: { username: lowerUsername } },
+      ],
+    };
   }
 
   if (normalizedIdentity === "admin") {
-    const normalizedEmail = identifier.toLowerCase();
     if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
-      return { candidates: [{ where: { email: normalizedEmail } }, { where: { username: identifier.toUpperCase() } }] };
+      return {
+        candidates: [
+          { where: { email: normalizedEmail } },
+          { where: { username: exactUsername } },
+          { where: { username: upperUsername } },
+          { where: { username: lowerUsername } },
+        ],
+      };
     }
 
-    return { candidates: [{ where: { username: identifier.toUpperCase() } }] };
+    return {
+      candidates: [
+        { where: { username: exactUsername } },
+        { where: { username: upperUsername } },
+        { where: { username: lowerUsername } },
+      ],
+    };
   }
 
-  const normalized = identifier.toUpperCase();
-  const normalizedEmail = identifier.toLowerCase();
+  const normalized = upperUsername;
 
   const candidates = [];
   if (STUDENT_ID_REGEX.test(normalized)) {
-    candidates.push({ where: { username: normalized } });
+    pushCandidate(candidates, { username: normalized });
   }
   if (EMPLOYEE_ID_REGEX.test(normalized)) {
-    candidates.push({ where: { username: normalized } });
+    pushCandidate(candidates, { username: normalized });
   }
   if (AMU_EMAIL_REGEX.test(normalizedEmail)) {
-    candidates.push(
-      { where: { email: normalizedEmail } },
-      { where: { username: normalized } },
-    );
+    pushCandidate(candidates, { email: normalizedEmail });
   }
   if (!candidates.length) {
-    candidates.push(
-      { where: { username: normalized } },
-      { where: { email: normalizedEmail } },
-    );
+    pushCandidate(candidates, { username: exactUsername });
+    pushCandidate(candidates, { username: upperUsername });
+    pushCandidate(candidates, { username: lowerUsername });
+    pushCandidate(candidates, { email: normalizedEmail });
   }
 
   return { candidates };
