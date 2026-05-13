@@ -306,16 +306,39 @@ export function createComplaintsService({ prisma }) {
           category,
           status: { in: ["ACTIVE", "WARNED"] },
         },
-        select: { id: true },
+        select: {
+          id: true,
+          complaintManagerProfile: {
+            select: {
+              id: true,
+              complaintType: true,
+            },
+          },
+        },
       });
 
       if (fallbackUser) {
-        manager = await prisma.complaintManager.upsert({
-          where: { complaintType },
-          update: { userId: fallbackUser.id, category },
-          create: { userId: fallbackUser.id, category, complaintType },
-          select: { id: true, userId: true },
-        });
+        const existingProfile = fallbackUser.complaintManagerProfile;
+
+        if (existingProfile && existingProfile.complaintType !== complaintType) {
+          return {
+            status: 422,
+            body: {
+              message:
+                "Complaint manager coverage is missing for this complaint type. The available manager in this category is already mapped to another bureau.",
+              complaintType,
+            },
+          };
+        }
+
+        manager = existingProfile && existingProfile.complaintType === complaintType
+          ? { id: existingProfile.id, userId: fallbackUser.id }
+          : await prisma.complaintManager.upsert({
+              where: { complaintType },
+              update: { userId: fallbackUser.id, category },
+              create: { userId: fallbackUser.id, category, complaintType },
+              select: { id: true, userId: true },
+            });
       }
     }
 

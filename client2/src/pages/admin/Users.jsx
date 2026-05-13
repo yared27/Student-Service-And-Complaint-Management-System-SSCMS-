@@ -102,7 +102,7 @@ export default function AdminUsersPage() {
 
   const filteredUsers = useMemo(() => {
     return users.filter((user) => {
-      const full = `${user.name || ""} ${user.email || ""} ${user.department || ""} ${user.role || ""}`.toLowerCase();
+      const full = `${user.name || ""} ${user.email || ""} ${user.department || ""} ${user.role || ""} ${user.complaintType || ""} ${user.serviceType || ""}`.toLowerCase();
       const q = search.trim().toLowerCase();
 
       const matchesSearch = !q || full.includes(q);
@@ -338,7 +338,7 @@ export default function AdminUsersPage() {
                 <th className="text-left px-4 py-3">Name</th>
                 <th className="text-left px-4 py-3">Email</th>
                 <th className="text-left px-4 py-3">Role</th>
-                <th className="text-left px-4 py-3">Dept</th>
+                <th className="text-left px-4 py-3">Scope</th>
                 <th className="text-left px-4 py-3">Status</th>
                 <th className="text-left px-4 py-3">Actions</th>
               </tr>
@@ -364,7 +364,13 @@ export default function AdminUsersPage() {
                       <td className="px-4 py-3 font-medium">{user.name || "-"}</td>
                       <td className="px-4 py-3">{user.email || "-"}</td>
                       <td className="px-4 py-3">{String(user.role || "-")}</td>
-                      <td className="px-4 py-3">{user.department || "-"}</td>
+                      <td className="px-4 py-3">
+                        {user.role === "COMPLAINT_MANAGER"
+                          ? (user.complaintType || user.complaintCategory || user.department || "-")
+                          : user.role === "SERVICE_MANAGER"
+                            ? (user.serviceType || user.department || "-")
+                            : (user.department || "-")}
+                      </td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusTone(status)}`}>{status.toLowerCase()}</span>
                       </td>
