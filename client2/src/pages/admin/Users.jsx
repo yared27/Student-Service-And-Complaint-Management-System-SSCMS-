@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const ROLE_OPTIONS = ["ADMIN", "SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "STUDENT"];
+const CREATE_ROLE_OPTIONS = ["SERVICE_MANAGER", "COMPLAINT_MANAGER"];
 const DEPT_OPTIONS = ["ICT", "Student Services", "Student Union", "Student Affairs", "Electrical", "Maintenance"];
 const SERVICE_TYPE_OPTIONS = ["DORMITORY", "CAFETERIA", "ICT", "LIBRARY", "CLASSROOM", "LABORATORY", "UTILITIES", "TRANSPORT"];
 const COMPLAINT_TYPE_OPTIONS = ["ACADEMIC", "FOOD_SERVICE", "DISCIPLINE", "GENERAL_SERVICE", "WOMEN_CASE", "HEALTH_CASE", "DISABILITY_CASE", "SPORTS"];
@@ -139,7 +140,7 @@ export default function AdminUsersPage() {
     setForm({
       name: "",
       email: "",
-      role: "STUDENT",
+      role: "SERVICE_MANAGER",
       department: "ICT",
       status: "ACTIVE",
       serviceType: "",
@@ -436,14 +437,14 @@ export default function AdminUsersPage() {
               <Input value={form.name} onChange={(e) => setForm((prev) => ({ ...prev, name: e.target.value }))} required />
             </div>
             <div className="space-y-2">
-              <Label>Email {"(optional for staff, investigators, and complaint managers)"}</Label>
-              <Input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} />
+              <Label>Email</Label>
+              <Input type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} required />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Role</Label>
                 <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.role} onChange={(e) => setForm((prev) => ({ ...prev, role: e.target.value }))}>
-                  {ROLE_OPTIONS.map((role) => (
+                  {CREATE_ROLE_OPTIONS.map((role) => (
                     <option key={role} value={role}>
                       {role}
                     </option>
@@ -464,7 +465,7 @@ export default function AdminUsersPage() {
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-2">
                 <Label>Service Type (for service managers)</Label>
-                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.serviceType} onChange={(e) => setForm((prev) => ({ ...prev, serviceType: e.target.value }))}>
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.serviceType} onChange={(e) => setForm((prev) => ({ ...prev, serviceType: e.target.value }))} required={form.role === "SERVICE_MANAGER"}>
                   <option value="">Not set</option>
                   {SERVICE_TYPE_OPTIONS.map((type) => (
                     <option key={type} value={type}>
@@ -475,12 +476,7 @@ export default function AdminUsersPage() {
               </div>
               <div className="space-y-2">
                 <Label>Complaint Bureau (for complaint managers)</Label>
-                <select
-                  className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm"
-                  value={form.complaintType}
-                  onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))}
-                  required={form.role === "COMPLAINT_MANAGER"}
-                >
+                <select className="h-10 w-full rounded-md border border-input bg-background px-3 text-sm" value={form.complaintType} onChange={(e) => setForm((prev) => ({ ...prev, complaintType: e.target.value }))} required={form.role === "COMPLAINT_MANAGER"}>
                   <option value="">Select bureau</option>
                   {COMPLAINT_TYPE_OPTIONS.map((type) => (
                     <option key={type} value={type}>

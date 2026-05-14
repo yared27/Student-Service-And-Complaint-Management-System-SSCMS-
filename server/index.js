@@ -34,10 +34,14 @@ if (!REFRESH_TOKEN_SECRET || REFRESH_TOKEN_SECRET.length < 32) {
 const auth = createAuthMiddleware({ jwtSecret: JWT_SECRET, prisma });
 
 app.use(
-    cors({
-        origin: true,
-        credentials: true,
-    }),
+  cors({
+    origin: [
+      "https://student-service-and-complaint-manag.vercel.app",
+      "http://localhost:5173",
+      "http://localhost:3000",
+    ],
+    credentials: true,
+  })
 );
 app.use(express.json());
 

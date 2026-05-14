@@ -38,6 +38,10 @@ model User {
   lastSuspendedAt  DateTime?
   suspensionEndsAt DateTime?
 
+  // First-login password change enforcement
+  passwordChangedOnFirstLogin Boolean @default(false)
+  tempPasswordExpiration DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

@@ -362,6 +362,8 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
     profileImage: true,
     campus: true,
     department: true,
+    passwordChangedOnFirstLogin: true,
+    tempPasswordExpiration: true,
   };
 
   let user = null;
@@ -414,6 +416,12 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
     };
   }
 
+  // Check if user needs to change password on first login
+  const needsPasswordChange =
+    user.passwordChangedOnFirstLogin === false &&
+    user.tempPasswordExpiration &&
+    new Date(user.tempPasswordExpiration) > new Date();
+
   const token = createAccessToken({
     user,
     jwtSecret,
@@ -436,6 +444,8 @@ export async function login(prisma, payload, jwtSecret, refreshTokenSecret, reqM
       accessTokenExpiresIn: rememberMe ? ACCESS_TOKEN_TTL_REMEMBER_ME : ACCESS_TOKEN_TTL,
       refreshTokenExpiresAt: refreshIssueResult.refreshTokenExpiresAt,
       role: user.role,
+      requiresPasswordChange: needsPasswordChange,
+      tempPasswordExpiration: needsPasswordChange ? user.tempPasswordExpiration : null,
       user: toPublicUser(user),
     },
   };
