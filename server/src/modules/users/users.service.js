@@ -717,6 +717,10 @@ export function createUsersService({ prisma }) {
       return { status: 403, body: { message: "Only field staff and investigators may be created from this gateway." } };
     }
 
+    if (!email) {
+      return { status: 400, body: { message: "Email is required to send credentials." } };
+    }
+
     const manager = await prisma.user.findUnique({
       where: { id: actorId },
       include: {
@@ -782,6 +786,7 @@ export function createUsersService({ prisma }) {
 
     const plainPassword = generateSecurePassword(10);
     const password = await bcrypt.hash(plainPassword, 10);
+    const tempPasswordExpiration = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     const resolvedCampus = campus || manager.campus || "";
 
@@ -814,6 +819,8 @@ export function createUsersService({ prisma }) {
         campus: resolvedCampus,
         department,
         category: resolvedCategory,
+        passwordChangedOnFirstLogin: false,
+        tempPasswordExpiration,
         managedByServiceManagerId,
         managedByComplaintManagerId,
       },
@@ -842,11 +849,28 @@ export function createUsersService({ prisma }) {
       });
     }
 
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendUserCredentialsEmail({
+        to: email,
+        username: computedUsername,
+        password: plainPassword,
+        role,
+        category: resolvedCategory || resolvedComplaintType || undefined,
+      });
+      emailSent = true;
+    } catch (err) {
+      emailError = String(err?.message || err);
+      console.error(`Failed to send credentials email for manager-created user ${computedUsername}:`, emailError);
+    }
+
     return {
       status: 201,
       body: {
-        message: "User created.",
+        message: emailSent ? "User created and credentials emailed." : "User created but failed to send credentials email.",
         user: toAdminUser(createdUser),
+        ...(emailSent ? {} : { warning: emailError }),
       },
     };
   }
