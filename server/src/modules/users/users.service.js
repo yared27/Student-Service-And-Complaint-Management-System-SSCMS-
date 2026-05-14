@@ -3,6 +3,7 @@ import crypto from "crypto";
 import { sendUserCredentialsEmail } from "../../lib/mailer.js";
 
 const ROLE_VALUES = new Set(["STUDENT", "SERVICE_MANAGER", "STAFF", "COMPLAINT_MANAGER", "INVESTIGATOR", "ADMIN"]);
+const ADMIN_CREATE_ROLE_VALUES = new Set(["SERVICE_MANAGER", "COMPLAINT_MANAGER"]);
 const STATUS_VALUES = new Set(["ACTIVE", "WARNED", "BANNED"]);
 const SERVICE_TYPE_VALUES = new Set(["DORMITORY", "CAFETERIA", "ICT", "LIBRARY", "CLASSROOM", "LABORATORY", "UTILITIES", "TRANSPORT"]);
 const CATEGORY_VALUES = new Set(["ICT", "DORMITORY", "CAFETERIA", "CLASSROOM", "LIBRARY", "LABORATORY", "UTILITIES", "TRANSPORT", "CLINIC"]);
@@ -458,6 +459,104 @@ export function createUsersService({ prisma }) {
       body: {
         success: true,
         data: { message: "Password changed successfully. Please login again." },
+      },
+    };
+  }
+
+  async function changePasswordOnFirstLogin(userId, payload) {
+    if (!userId) {
+      return { status: 401, body: { message: "Unauthorized." } };
+    }
+
+    const temporaryPassword = String(payload?.temporaryPassword || "");
+    const newPassword = String(payload?.newPassword || "");
+
+    if (!temporaryPassword || !newPassword) {
+      return { status: 400, body: { message: "temporaryPassword and newPassword are required." } };
+    }
+
+    if (newPassword.length < 8) {
+      return { status: 400, body: { message: "Password must be at least 8 characters." } };
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        username: true,
+        password: true,
+        passwordChangedOnFirstLogin: true,
+        tempPasswordExpiration: true,
+      },
+    });
+
+    if (!user) {
+      return { status: 404, body: { message: "User not found." } };
+    }
+
+    // Check if user is eligible for first-login password change
+    if (user.passwordChangedOnFirstLogin === true) {
+      return {
+        status: 400,
+        body: { message: "This user has already changed their password on first login." },
+      };
+    }
+
+    // Check if temp password has expired
+    if (!user.tempPasswordExpiration || new Date(user.tempPasswordExpiration) <= new Date()) {
+      return {
+        status: 401,
+        body: { message: "Temporary password has expired. Please contact an administrator." },
+      };
+    }
+
+    // Verify the temporary password
+    const validTemporaryPassword = await bcrypt.compare(temporaryPassword, user.password);
+    if (!validTemporaryPassword) {
+      return { status: 401, body: { message: "Temporary password is incorrect." } };
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Update password and mark as changed
+    await prisma.$transaction([
+      prisma.user.update({
+        where: { id: userId },
+        data: {
+          password: hashedPassword,
+          passwordChangedOnFirstLogin: true,
+          tempPasswordExpiration: null,
+        },
+      }),
+      // Revoke all existing refresh tokens to force re-login
+      prisma.refreshToken.updateMany({
+        where: { userId, revokedAt: null },
+        data: { revokedAt: new Date() },
+      }),
+    ]);
+
+    // Log this action without blocking the password-change response if logging fails.
+    try {
+      await prisma.activityLog.create({
+        data: {
+          actorId: userId,
+          targetUserId: userId,
+          action: "USER_PASSWORD_CHANGED_ON_FIRST_LOGIN",
+          entityType: "USER",
+          entityId: userId,
+          description: `User ${user.username} changed password on first login.`,
+        },
+      });
+    } catch (logError) {
+      console.error("Failed to write first-login password change audit log:", logError);
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
+        message: "Password changed successfully. Please login again with your new password.",
       },
     };
   }
@@ -1210,12 +1309,27 @@ export function createUsersService({ prisma }) {
       return { status: 400, body: { message: "role is required." } };
     }
 
+    if (!ADMIN_CREATE_ROLE_VALUES.has(role)) {
+      return {
+        status: 400,
+        body: { message: "Admin can only create SERVICE_MANAGER or COMPLAINT_MANAGER accounts." },
+      };
+    }
+
     if (!email) {
       return { status: 400, body: { message: "Email is required to send credentials." } };
     }
 
     if (role === "SERVICE_MANAGER" && !/^[A-Za-z0-9._%+-]+@amu\.edu\.et$/i.test(email)) {
       return { status: 400, body: { message: "Service manager email must be an @amu.edu.et address." } };
+    }
+
+    if (role === "SERVICE_MANAGER" && !serviceType) {
+      return { status: 400, body: { message: "Service type is required for service manager accounts." } };
+    }
+
+    if (role === "COMPLAINT_MANAGER" && !complaintType) {
+      return { status: 400, body: { message: "Complaint bureau is required for complaint manager accounts." } };
     }
 
     if (!ROLE_VALUES.has(role)) {
@@ -1228,11 +1342,7 @@ export function createUsersService({ prisma }) {
 
     const resolvedCategory = role === "SERVICE_MANAGER"
       ? serviceType
-      : role === "STAFF"
-        ? serviceType || department
-        : role === "COMPLAINT_MANAGER" || role === "INVESTIGATOR"
-          ? complaintType || department
-          : payload?.category || department;
+      : complaintType || department;
 
     const username = buildCredentialUsername({ role, category: resolvedCategory, complaintType, email, name });
     const plainPassword = generateSecurePassword(10);
@@ -1251,24 +1361,8 @@ export function createUsersService({ prisma }) {
       return { status: 409, body: { message: "User with same username or email already exists." } };
     }
 
-    try {
-      await sendUserCredentialsEmail({
-        to: email,
-        username,
-        password: plainPassword,
-        role,
-        category: resolvedCategory,
-      });
-    } catch (error) {
-      const message = String(error?.message || "Failed to send credentials email. User not created.");
-      if (message.includes("SMTP configuration missing")) {
-        return { status: 500, body: { message: "SMTP configuration missing" } };
-      }
-
-      return { status: 502, body: { message: "Failed to send credentials email. User not created." } };
-    }
-
     const password = await bcrypt.hash(plainPassword, 10);
+    const tempPasswordExpiration = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours from now
 
     const created = await prisma.$transaction(async (tx) => {
       const user = await tx.user.create({
@@ -1281,18 +1375,26 @@ export function createUsersService({ prisma }) {
           status,
           campus,
           department,
+          // Mark that this user needs to change password on first login
+          passwordChangedOnFirstLogin: false,
+          tempPasswordExpiration,
         },
       });
 
-      const profileSyncError = await syncManagerProfiles(tx, {
-        userId: user.id,
-        role,
-        serviceType,
-        complaintType,
-      });
+      if (role === "SERVICE_MANAGER") {
+        await tx.serviceManager.upsert({
+          where: { userId: user.id },
+          update: { serviceType, category: serviceType },
+          create: { userId: user.id, serviceType, category: serviceType },
+        });
+      }
 
-      if (profileSyncError) {
-        throw new Error(`PROFILE_SYNC:${profileSyncError.status}:${profileSyncError.message}`);
+      if (role === "COMPLAINT_MANAGER") {
+        await tx.complaintManager.upsert({
+          where: { userId: user.id },
+          update: { complaintType, category: mapComplaintTypeToCategory(complaintType) },
+          create: { userId: user.id, complaintType, category: mapComplaintTypeToCategory(complaintType) },
+        });
       }
 
       return tx.user.findUnique({
@@ -1320,12 +1422,29 @@ export function createUsersService({ prisma }) {
       return { status: created.status, body: { message: created.message } };
     }
 
+    // Attempt to send credentials email after user creation. If sending fails,
+    // log the error and return success with a warning to avoid blocking account creation.
+    let emailSent = false;
+    let emailError = null;
+    try {
+      await sendUserCredentialsEmail({
+        to: email,
+        username,
+        password: plainPassword,
+        role,
+        category: resolvedCategory,
+      });
+      emailSent = true;
+    } catch (err) {
+      emailError = String(err?.message || err);
+      console.error(`Failed to send credentials email for user ${username} (${email}):`, emailError);
+    }
+
     return {
       status: 201,
-      body: {
-        message: "User created and credentials emailed.",
-        user: toAdminUser(created),
-      },
+      body: emailSent
+        ? { message: "User created and credentials emailed.", user: toAdminUser(created) }
+        : { message: "User created but failed to send credentials email.", user: toAdminUser(created), warning: emailError },
     };
   }
 
@@ -1543,6 +1662,7 @@ export function createUsersService({ prisma }) {
     updateMe,
     updateProfileImage,
     changePassword,
+    changePasswordOnFirstLogin,
     listUsers,
     listAdminUsers,
     createUser,

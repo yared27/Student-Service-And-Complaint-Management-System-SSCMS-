@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useAuth } from "@/context/AuthContext";
+import FirstLoginPasswordChange from "./FirstLoginPasswordChange";
 import heroImg from "@/assets/hero-campus.jpg";
 import { Navigate } from "react-router-dom";
 
@@ -51,6 +52,8 @@ if (storedAuth) {
   }
 }
   const [showPassword, setShowPassword] = useState(false);
+  const [loginData, setLoginData] = useState(null);
+  const [requiresPasswordChange, setRequiresPasswordChange] = useState(false);
 
   const {
     register,
@@ -78,11 +81,27 @@ if (storedAuth) {
       const user = loginResponse?.data?.user;
       const token = loginResponse?.data?.token;
       const refreshToken = loginResponse?.data?.refreshToken;
+      const requiresChange = loginResponse?.data?.requiresPasswordChange || false;
 
       if (!user || !token) {
         throw new Error("Invalid authentication response.");
       }
 
+      // Check if user needs to change password on first login
+      if (requiresChange) {
+        // Store login data temporarily for the password change component
+        setLoginData({
+          user,
+          token,
+          refreshToken,
+          role: loginResponse?.data?.role,
+          tempPasswordExpiration: loginResponse?.data?.tempPasswordExpiration,
+        });
+        setRequiresPasswordChange(true);
+        return;
+      }
+
+      // Normal login flow
       if (typeof auth.dispatch === "function") {
         auth.dispatch({
           type: "LOGIN_SUCCESS",
@@ -107,6 +126,11 @@ if (storedAuth) {
     () => "Use your assigned username and password to access the dashboard.",
     [],
   );
+
+  // Show password change form if required
+  if (requiresPasswordChange && loginData) {
+    return <FirstLoginPasswordChange loginData={loginData} />;
+  }
 
   return (
     <div className="min-h-screen grid lg:grid-cols-2">

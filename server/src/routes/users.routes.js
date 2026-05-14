@@ -75,6 +75,7 @@ export function createUsersRouter({ prisma, auth }) {
   router.patch("/me", auth.authenticate, controller.updateMe);
   router.post("/profile-image", auth.authenticate, controller.updateProfileImage);
   router.post("/change-password", auth.authenticate, controller.changePassword);
+  router.post("/change-password-first-login", auth.authenticate, controller.changePasswordOnFirstLogin);
 
   router.get(
     "/",

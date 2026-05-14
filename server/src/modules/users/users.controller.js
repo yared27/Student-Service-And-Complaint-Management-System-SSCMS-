@@ -44,6 +44,18 @@ export function createUsersController({ prisma }) {
       }
     },
 
+    changePasswordOnFirstLogin: async (req, res) => {
+      try {
+        const result = await service.changePasswordOnFirstLogin(req.user?.sub, req.body);
+        // TEMP LOG: help debug client-side mismatch where frontend reports failure
+        console.log("[DEBUG] changePasswordOnFirstLogin -> status:", result?.status, "body:", result?.body);
+        return res.status(result.status).json(result.body);
+      } catch (error) {
+        console.error("Change password on first login failed:", error);
+        return res.status(500).json({ message: "Failed to change password." });
+      }
+    },
+
     listUsers: async (req, res) => {
       try {
         const result = await service.listUsers({
