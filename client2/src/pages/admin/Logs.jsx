@@ -116,11 +116,11 @@ export default function AdminLogsPage() {
       <div className="max-w-6xl mx-auto space-y-6">
       <header className="rounded-2xl bg-gradient-to-r from-primary via-primary-glow to-accent px-6 py-5 text-primary-foreground shadow-elegant">
         <p className="text-xs uppercase tracking-[0.2em] opacity-85">Admin</p>
-        <h1 className="mt-2 text-2xl md:text-3xl font-display font-bold">Activity Logs</h1>
+        <h1 className="mt-2 text-xl sm:text-2xl md:text-3xl font-display font-bold">Activity Logs</h1>
       </header>
 
       <section className="rounded-2xl border bg-card shadow-card p-4 space-y-4">
-        <div className="grid gap-3 md:grid-cols-4">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-4">
           <select className="h-10 rounded-md border border-input bg-background px-3 text-sm" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
             <option value="ALL">All Roles</option>
             <option value="ADMIN">ADMIN</option>
@@ -136,11 +136,11 @@ export default function AdminLogsPage() {
           <div className="flex justify-end gap-2">
             <Button variant={viewMode === "table" ? "default" : "outline"} size="sm" onClick={() => setViewMode("table")}>
               <TableIcon className="w-4 h-4" />
-              Table
+              <span className="hidden sm:inline">Table</span>
             </Button>
             <Button variant={viewMode === "timeline" ? "default" : "outline"} size="sm" onClick={() => setViewMode("timeline")}>
               <ListTree className="w-4 h-4" />
-              Timeline
+              <span className="hidden sm:inline">Timeline</span>
             </Button>
           </div>
         </div>

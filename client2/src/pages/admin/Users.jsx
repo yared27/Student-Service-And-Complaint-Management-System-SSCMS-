@@ -279,12 +279,12 @@ export default function AdminUsersPage() {
       <div className="max-w-6xl mx-auto space-y-6">
       <header className="rounded-2xl bg-gradient-to-r from-primary via-primary-glow to-accent px-6 py-5 text-primary-foreground shadow-elegant">
         <p className="text-xs uppercase tracking-[0.2em] opacity-85">Admin</p>
-        <h1 className="mt-2 text-2xl md:text-3xl font-display font-bold">Users Management</h1>
+        <h1 className="mt-2 text-xl sm:text-2xl md:text-3xl font-display font-bold">Users Management</h1>
       </header>
 
       <section className="rounded-2xl border bg-card shadow-card p-4 space-y-4">
-        <div className="grid gap-3 lg:grid-cols-5">
-          <div className="relative lg:col-span-2">
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-5">
+          <div className="relative md:col-span-2 lg:col-span-2">
             <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
             <Input
               className="pl-9"
@@ -332,7 +332,44 @@ export default function AdminUsersPage() {
           </Button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border">
+        <div className="flex flex-col gap-3 sm:hidden">
+          {loading ? (
+            <div className="px-4 py-6 text-muted-foreground">Loading users...</div>
+          ) : filteredUsers.length === 0 ? (
+            <div className="px-4 py-6 text-muted-foreground">
+              {users.length === 0 ? "No users found." : "No users match your current filters."}
+            </div>
+          ) : (
+            paginatedUsers.map((user) => {
+              const status = normalizeStatus(user.status, user.isActive);
+              return (
+                <div key={user.id} className="rounded-lg border bg-white p-4 shadow-sm space-y-2">
+                  <div className="flex justify-between items-start">
+                    <div className="flex-1">
+                      <p className="font-semibold text-sm">{user.name || "-"}</p>
+                      <p className="text-xs text-muted-foreground">{user.email || "-"}</p>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusTone(status)}`}>
+                      {status.toLowerCase()}
+                    </span>
+                  </div>
+                  <div className="space-y-1 text-xs">
+                    <p><span className="text-muted-foreground">Role:</span> {String(user.role || "-")}</p>
+                    <p><span className="text-muted-foreground">Scope:</span> {user.role === "COMPLAINT_MANAGER" ? (user.complaintType || user.complaintCategory || user.department || "-") : user.role === "SERVICE_MANAGER" ? (user.serviceType || user.department || "-") : (user.department || "-")}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-1 pt-2">
+                    <Button variant="outline" size="sm" className="text-xs" onClick={() => openEdit(user)}>Edit</Button>
+                    <Button variant="outline" size="sm" className="text-xs" onClick={() => moderateUser(user.id, "WARNED")}>Warn</Button>
+                    <Button variant="outline" size="sm" className="text-xs" onClick={() => moderateUser(user.id, "BANNED")}>Ban</Button>
+                    <Button variant="outline" size="sm" className="text-xs" onClick={() => deactivateUser(user.id)}>Deact</Button>
+                  </div>
+                </div>
+              );
+            })
+          )}
+        </div>
+
+        <div className="overflow-x-auto rounded-lg border hidden sm:block">
           <table className="w-full text-sm">
             <thead className="bg-secondary/60">
               <tr>
@@ -376,13 +413,13 @@ export default function AdminUsersPage() {
                         <span className={`px-2 py-1 rounded-full text-xs font-medium ${statusTone(status)}`}>{status.toLowerCase()}</span>
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex gap-2">
-                          <Button variant="outline" size="sm" onClick={() => openEdit(user)}>
+                        <div className="flex flex-wrap gap-1">
+                          <Button variant="outline" size="sm" className="text-xs" onClick={() => openEdit(user)}>
                             Edit
                           </Button>
-                          <Button variant="outline" size="sm" onClick={() => moderateUser(user.id, "WARNED")}>Warn</Button>
-                          <Button variant="outline" size="sm" onClick={() => moderateUser(user.id, "BANNED")}>Ban</Button>
-                          <Button variant="outline" size="sm" onClick={() => deactivateUser(user.id)}>
+                          <Button variant="outline" size="sm" className="text-xs" onClick={() => moderateUser(user.id, "WARNED")}>Warn</Button>
+                          <Button variant="outline" size="sm" className="text-xs" onClick={() => moderateUser(user.id, "BANNED")}>Ban</Button>
+                          <Button variant="outline" size="sm" className="text-xs" onClick={() => deactivateUser(user.id)}>
                             Deact
                           </Button>
                         </div>

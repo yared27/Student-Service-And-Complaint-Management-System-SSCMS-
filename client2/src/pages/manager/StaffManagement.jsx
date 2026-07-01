@@ -119,7 +119,7 @@ export default function StaffManagement() {
 
         <div className="overflow-hidden rounded-3xl border bg-card shadow-card">
           <div className="overflow-x-auto">
-          <table className="min-w-[900px] w-full text-sm">
+          <table className="w-full text-sm">
             <thead className="bg-secondary/60 text-muted-foreground">
               <tr>
                 <th className="px-5 py-4 text-left font-semibold">Name</th>

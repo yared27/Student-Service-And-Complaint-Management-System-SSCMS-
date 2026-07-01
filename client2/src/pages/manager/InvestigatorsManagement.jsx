@@ -139,7 +139,7 @@ export default function InvestigatorsManagement() {
 
         <div className="overflow-hidden rounded-3xl border bg-card shadow-card">
           <div className="overflow-x-auto">
-          <table className="min-w-[920px] w-full text-sm">
+          <table className="w-full text-sm">
             <thead className="bg-secondary/60 text-muted-foreground">
               <tr>
                 <th className="px-5 py-4 text-left font-semibold">Name</th>

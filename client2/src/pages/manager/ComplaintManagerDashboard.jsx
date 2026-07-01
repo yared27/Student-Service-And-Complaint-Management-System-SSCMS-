@@ -48,6 +48,20 @@ function normalizeComplaintTypeScope(value) {
   return COMPLAINT_TYPE_ALIASES[normalized] || normalized.replace(/\s/g, "_");
 }
 
+function getDuplicateRiskLabel(score) {
+  const value = Number(score || 0);
+  if (value > 0.7) return "High";
+  if (value >= 0.4) return "Medium";
+  return "Low";
+}
+
+function getDuplicateRiskTone(score) {
+  const value = Number(score || 0);
+  if (value > 0.7) return "text-red-600 bg-red-50 border-red-200";
+  if (value >= 0.4) return "text-amber-700 bg-amber-50 border-amber-200";
+  return "text-emerald-700 bg-emerald-50 border-emerald-200";
+}
+
 export default function ComplaintManagerDashboard() {
   const navigate = useNavigate();
   const { token, user } = useAuth();
@@ -229,6 +243,22 @@ export default function ComplaintManagerDashboard() {
                           </div>
                           <span className="rounded-full bg-muted px-2 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{complaint.status}</span>
                         </div>
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">AI Suggestions</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Suggested Priority</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{complaint.priority || "MEDIUM"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Duplicate Risk</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{Number(complaint.duplicateScore || 0).toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 font-semibold ${getDuplicateRiskTone(complaint.duplicateScore)}`}>
+                            Duplicate risk is {getDuplicateRiskLabel(complaint.duplicateScore).toLowerCase()} ({Number(complaint.duplicateScore || 0).toFixed(2)} similarity).
+                          </div>
+                        </div>
                       </div>
                     ))}
                   </div>
@@ -273,6 +303,22 @@ export default function ComplaintManagerDashboard() {
                             </div>
                           );
                         })()}
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">AI Suggestions</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Suggested Priority</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{complaint.priority || "MEDIUM"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Duplicate Risk</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{Number(complaint.duplicateScore || 0).toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 font-semibold ${getDuplicateRiskTone(complaint.duplicateScore)}`}>
+                            Duplicate risk is {getDuplicateRiskLabel(complaint.duplicateScore).toLowerCase()} ({Number(complaint.duplicateScore || 0).toFixed(2)} similarity).
+                          </div>
+                        </div>
                       </div>
                       <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{complaint.status}</span>
                     </div>
