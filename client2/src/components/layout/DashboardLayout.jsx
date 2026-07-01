@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
-import { Bell, LogOut, Search, LayoutDashboard, Settings, UserRound } from "lucide-react";
+import { Bell, LogOut, Search, LayoutDashboard, Settings, UserRound, Menu, X } from "lucide-react";
 import { Logo } from "@/components/Logo";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { useAuth } from "@/context/AuthContext";
 import { apiRequest } from "@/lib/api/httpClient";
 
@@ -94,6 +95,7 @@ export default function DashboardLayout({
   const { name, meta } = getUserSummary(authUser || user);
   const [unreadCount, setUnreadCount] = useState(0);
   const [searchQuery, setSearchQuery] = useState("");
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   const sidebarUtilityLinks = [
     { to: "/profile", label: "Profile", icon: UserRound },
@@ -226,6 +228,15 @@ export default function DashboardLayout({
       <main className="flex-1 flex flex-col min-w-0">
         <header className="bg-card border-b border-border">
           <div className="px-6 lg:px-10 py-4 flex items-center gap-4">
+            <Button 
+              variant="ghost" 
+              size="icon" 
+              className="lg:hidden" 
+              onClick={() => setMobileMenuOpen(true)}
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
+
             <div className="lg:hidden">
               <Logo />
             </div>
@@ -291,6 +302,62 @@ export default function DashboardLayout({
 
         <div className="px-6 lg:px-10 py-8 flex flex-col gap-8 flex-1">{children}</div>
       </main>
+
+      {/* Mobile Navigation Drawer */}
+      <Sheet open={mobileMenuOpen} onOpenChange={setMobileMenuOpen}>
+        <SheetContent side="left" className="w-72 p-0 flex flex-col">
+          <SheetHeader className="p-6 border-b border-sidebar-border">
+            <Logo light />
+          </SheetHeader>
+          
+          <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
+            {navItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                end={item.end}
+                onClick={() => setMobileMenuOpen(false)}
+                className={({ isActive }) =>
+                  `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-smooth ${
+                    isActive
+                      ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-card"
+                      : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                  }`
+                }
+              >
+                <LayoutDashboard className="w-4 h-4" />
+                {item.label}
+              </NavLink>
+            ))}
+          </nav>
+
+          <div className="px-4 pb-4 pt-2 border-t border-sidebar-border space-y-1">
+            <p className="px-4 text-[11px] font-semibold uppercase tracking-[0.24em] text-sidebar-foreground/50">
+              Account
+            </p>
+            {sidebarUtilityLinks.map((item) => {
+              const Icon = item.icon;
+              return (
+                <NavLink
+                  key={item.to}
+                  to={item.to}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={({ isActive }) =>
+                    `flex items-center gap-3 px-4 py-3 rounded-lg text-sm font-medium transition-smooth ${
+                      isActive
+                        ? "bg-sidebar-primary text-sidebar-primary-foreground shadow-card"
+                        : "text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground"
+                    }`
+                  }
+                >
+                  <Icon className="w-4 h-4" />
+                  {item.label}
+                </NavLink>
+              );
+            })}
+          </div>
+        </SheetContent>
+      </Sheet>
     </div>
   );
 }

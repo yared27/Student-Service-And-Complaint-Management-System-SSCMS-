@@ -528,11 +528,6 @@ export function createServiceRequestsService({ prisma }) {
           completedAt: null,
           canReopenUntil: null,
         },
-        include: {
-          createdBy: { select: { id: true, name: true } },
-          assignedTo: { select: { id: true, name: true } },
-          assignedServiceManager: { select: { userId: true } },
-        },
       });
 
       await prisma.activityLog.create({

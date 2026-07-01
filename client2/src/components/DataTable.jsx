@@ -123,8 +123,33 @@ export default function DataTable({ columns = [], data = [], onRowClick, loading
         </div>
       </div>
 
-      <div className="overflow-x-auto">
-        <table className="w-full text-sm">
+      <div>
+        <div className="block sm:hidden">
+          {loading ? (
+            <div className="space-y-3 p-4">
+              <Skeleton variant="table-row" />
+              <Skeleton variant="table-row" />
+            </div>
+          ) : pageData.length === 0 ? (
+            <div className="p-4 text-muted-foreground">No rows found.</div>
+          ) : (
+            <div className="space-y-3 p-4">
+              {pageData.map((row, idx) => (
+                <div key={row.id || idx} className="rounded-lg border bg-white p-3 shadow-sm">
+                  {columns.map((col) => (
+                    <div key={col.key} className="flex justify-between py-1">
+                      <span className="text-sm text-muted-foreground">{col.label}</span>
+                      <span className="text-sm font-medium">{row?.[col.key] ?? "-"}</span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full text-sm">
           <thead className="bg-secondary/60">
             <tr>
               {columns.map((column) => (

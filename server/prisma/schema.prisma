@@ -24,6 +24,8 @@ model User {
   email  String?    @unique // optional now
   role   Role
   category Category?
+  isDuplicate Boolean              @default(false)
+  duplicateScore Float             @default(0)
   status UserStatus @default(ACTIVE)
 
   campus     String

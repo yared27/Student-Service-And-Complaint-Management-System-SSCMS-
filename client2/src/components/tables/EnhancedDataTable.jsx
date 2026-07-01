@@ -118,8 +118,28 @@ export function EnhancedDataTable({
       )}
 
       {/* Table */}
-      <div className="overflow-x-auto">
-        <table className="w-full">
+      <div>
+        <div className="block sm:hidden p-3">
+          {paginatedData.length === 0 ? (
+            <div className="text-sm text-muted-foreground">No data found</div>
+          ) : (
+            <div className="space-y-3">
+              {paginatedData.map((row, i) => (
+                <div key={i} className="rounded-lg border bg-card p-3">
+                  {columns.map((col) => (
+                    <div key={col.key} className="flex justify-between py-1">
+                      <div className="text-xs text-muted-foreground">{col.label}</div>
+                      <div className="text-sm font-medium">{col.render ? col.render(row[col.key], row) : row[col.key]}</div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="hidden sm:block overflow-x-auto">
+          <table className="w-full">
           <thead className="border-b border-border bg-muted/50">
             <tr>
               {columns.map((col) => (
@@ -156,7 +176,8 @@ export function EnhancedDataTable({
               ))
             )}
           </tbody>
-        </table>
+          </table>
+        </div>
       </div>
 
       {/* Pagination */}

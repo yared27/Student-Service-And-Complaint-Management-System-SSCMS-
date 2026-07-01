@@ -22,6 +22,34 @@ function extractLatestNote(activityLogs = []) {
   return notePart;
 }
 
+function getDuplicateRiskLabel(score) {
+  const value = Number(score || 0);
+
+  if (value > 0.7) {
+    return "High";
+  }
+
+  if (value >= 0.4) {
+    return "Medium";
+  }
+
+  return "Low";
+}
+
+function getDuplicateRiskTone(score) {
+  const value = Number(score || 0);
+
+  if (value > 0.7) {
+    return "text-red-600 bg-red-50 border-red-200";
+  }
+
+  if (value >= 0.4) {
+    return "text-amber-700 bg-amber-50 border-amber-200";
+  }
+
+  return "text-emerald-700 bg-emerald-50 border-emerald-200";
+}
+
 export default function ServiceManagerDashboard() {
   const { token, user } = useAuth();
   const [requests, setRequests] = useState([]);
@@ -185,13 +213,13 @@ export default function ServiceManagerDashboard() {
     <DashboardLayout role="service_manager" user={user || {}}>
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">Service workflow</p>
-            <h1 className="mt-2 text-3xl font-bold text-foreground">Service Manager Dashboard</h1>
+            <h1 className="mt-2 text-2xl font-bold text-foreground sm:text-3xl">Service Manager Dashboard</h1>
             <p className="mt-2 text-sm text-muted-foreground">Assign requests to field staff and track completion through the service lifecycle.</p>
           </div>
-          <button onClick={loadData} className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent transition-colors">
+          <button onClick={loadData} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium transition-colors hover:bg-accent sm:w-auto">
             <RefreshCcw className="h-4 w-4" /> Refresh
           </button>
         </div>
@@ -220,6 +248,22 @@ export default function ServiceManagerDashboard() {
                         </div>
                         <span className="text-xs font-semibold text-muted-foreground bg-muted px-2 py-1 rounded whitespace-nowrap">{request.priority}</span>
                       </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">AI Suggestions</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Suggested Priority</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{request.priority || "MEDIUM"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Duplicate Risk</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{Number(request.duplicateScore || 0).toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 font-semibold ${getDuplicateRiskTone(request.duplicateScore)}`}>
+                            Duplicate risk is {getDuplicateRiskLabel(request.duplicateScore).toLowerCase()} ({Number(request.duplicateScore || 0).toFixed(2)} similarity).
+                          </div>
+                        </div>
                       <div className="flex items-center justify-between text-xs text-muted-foreground">
                         <span>{request.assignedTo?.name || "Unassigned"}</span>
                         <span className="rounded-full bg-muted px-2 py-0.5">{request.status}</span>
@@ -252,6 +296,22 @@ export default function ServiceManagerDashboard() {
                       <div className="flex-1">
                         <p className="font-semibold text-foreground">{request.title}</p>
                         <p className="text-sm text-muted-foreground truncate">{request.description}</p>
+                        <div className="mt-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-xs text-slate-600">
+                          <p className="text-[10px] font-bold uppercase tracking-[0.24em] text-slate-400">AI Suggestions</p>
+                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Suggested Priority</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{request.priority || "MEDIUM"}</p>
+                            </div>
+                            <div>
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-slate-400">Duplicate Risk</p>
+                              <p className="text-sm font-bold text-[#002B5B]">{Number(request.duplicateScore || 0).toFixed(2)}</p>
+                            </div>
+                          </div>
+                          <div className={`mt-2 inline-flex rounded-full border px-2.5 py-1 font-semibold ${getDuplicateRiskTone(request.duplicateScore)}`}>
+                            Duplicate risk is {getDuplicateRiskLabel(request.duplicateScore).toLowerCase()} ({Number(request.duplicateScore || 0).toFixed(2)} similarity).
+                          </div>
+                        </div>
                         {extractLatestNote(request.activityLogs || []) ? (
                           <div className="mt-3 rounded-xl border border-dashed border-border bg-muted/40 px-3 py-2 text-xs text-muted-foreground">
                             <span className="font-semibold text-foreground">Latest staff note:</span> {extractLatestNote(request.activityLogs || [])}
@@ -261,7 +321,7 @@ export default function ServiceManagerDashboard() {
                       <span className="rounded-full bg-muted px-3 py-1 text-xs font-semibold text-foreground whitespace-nowrap">{request.status}</span>
                     </div>
 
-                    <div className="grid gap-2 lg:grid-cols-[1.1fr_0.9fr_auto] lg:items-end">
+                    <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-[1.1fr_0.9fr_auto] lg:items-end">
                       <select
                         value={selectedAssignee[request.id] || request.assignedToId || ""}
                         onChange={(event) => setSelectedAssignee((current) => ({ ...current, [request.id]: event.target.value }))}
@@ -293,13 +353,13 @@ export default function ServiceManagerDashboard() {
                           updateAssignment(request.id);
                         }}
                         disabled={savingRequestId === request.id}
-                        className="rounded-2xl bg-primary px-5 py-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                        className="w-full rounded-2xl bg-primary px-5 py-3 text-xs font-semibold text-primary-foreground transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50 sm:w-auto"
                       >
                         {savingRequestId === request.id ? "Updating..." : "Update"}
                       </button>
                       <button
                         onClick={() => setReportTarget(request)}
-                        className="rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground hover:bg-accent transition-colors"
+                        className="w-full rounded-lg border border-border bg-background px-3 py-2 text-xs font-medium text-foreground transition-colors hover:bg-accent sm:w-auto"
                       >
                         Report Student
                       </button>

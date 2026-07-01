@@ -167,15 +167,15 @@ export default function AdminDashboard() {
     >
       <div className="max-w-7xl mx-auto space-y-8">
         {/* Header */}
-        <div className="flex items-start justify-between gap-6">
+        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-6">
           <div>
             <p className="text-xs font-semibold uppercase tracking-[0.24em] text-muted-foreground">System controller</p>
-            <h1 className="mt-2 text-3xl font-bold text-foreground">Admin Dashboard</h1>
+            <h1 className="mt-2 text-2xl sm:text-3xl font-bold text-foreground">Admin Dashboard</h1>
             <p className="mt-2 text-sm text-muted-foreground">Real-time analytics for services, complaints, and system performance.</p>
           </div>
           <button
             onClick={loadData}
-            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent transition-colors"
+            className="inline-flex items-center gap-2 rounded-xl border border-border px-4 py-3 text-sm font-medium hover:bg-accent transition-colors whitespace-nowrap"
           >
             <RefreshCcw className="h-4 w-4" /> Refresh
           </button>

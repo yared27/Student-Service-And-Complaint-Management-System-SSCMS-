@@ -14,6 +14,8 @@ const COMPLAINT_SAFE_SELECT = {
   description: true,
   status: true,
   priority: true,
+  isDuplicate: true,
+  duplicateScore: true,
   complaintType: true,
   createdById: true,
   assignedToId: true,
@@ -356,6 +358,11 @@ export function createComplaintsService({ prisma }) {
 
     console.log("Routing to manager:", manager.id);
 
+    const aiCreateData = {
+      isDuplicate: Boolean(advisory?.isDuplicate),
+      duplicateScore: Number(advisory?.duplicateScore || 0),
+    };
+
     let complaint;
     try {
       complaint = await prisma.complaint.create({
@@ -369,6 +376,7 @@ export function createComplaintsService({ prisma }) {
           createdById: userId,
           assignedComplaintManagerId: manager.id,
           ...(investigator?.id ? { assignedToId: investigator.id } : {}),
+          ...(aiCreateData || {}),
           attachments: attachmentUrls.length
             ? {
                 create: attachmentUrls,
@@ -391,6 +399,7 @@ export function createComplaintsService({ prisma }) {
           category,
           createdById: userId,
           assignedComplaintManagerId: manager.id,
+          ...(aiCreateData || {}),
           attachments: attachmentUrls.length
             ? {
                 create: attachmentUrls,
